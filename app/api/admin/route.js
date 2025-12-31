@@ -12,75 +12,60 @@ export async function POST(request) {
     const body = await request.json();
     const { action } = body;
 
-    // --- 1. DASHBOARD LOAD (Updated with History) ---
+    // --- 1. GET RICH DASHBOARD DATA ---
     if (action === 'get_dashboard') {
-      const projects = await pool.query('SELECT * FROM projects');
-      const tokens = await pool.query('SELECT * FROM tokens ORDER BY id DESC');
-      // Get attendance (Live + Manual)
-      const attendance = await pool.query('SELECT * FROM attendance ORDER BY clock_in_time DESC LIMIT 20');
-      const employees = await pool.query("SELECT username, full_name, date_of_joining FROM users WHERE role = 'employee'");
-      // Get Tasks (Active & History)
-      const tasks = await pool.query('SELECT * FROM tasks ORDER BY id DESC');
+      const projects = await pool.query('SELECT * FROM projects ORDER BY id DESC');
+      const employees = await pool.query("SELECT username, full_name, role, date_of_joining FROM users WHERE role = 'employee'");
+      const tokens = await pool.query('SELECT * FROM tokens ORDER BY status DESC, id DESC');
+      const attendance = await pool.query('SELECT * FROM attendance ORDER BY clock_in_time DESC LIMIT 15');
+      const workLogs = await pool.query(`
+        SELECT w.*, p.project_name 
+        FROM work_logs w 
+        JOIN projects p ON w.project_id = p.id 
+        ORDER BY w.log_date DESC, w.id DESC LIMIT 20
+      `);
+
+      // Calculate Total Stats
+      const stats = {
+        total_projects: projects.rows.length,
+        active_projects: projects.rows.filter(p => p.status === 'Active').length,
+        total_budget: projects.rows.reduce((sum, p) => sum + Number(p.budget_total), 0),
+        total_spent: projects.rows.reduce((sum, p) => sum + Number(p.budget_paid), 0)
+      };
       
-      return NextResponse.json({ success: true, projects: projects.rows, tokens: tokens.rows, attendance: attendance.rows, employees: employees.rows, tasks: tasks.rows });
+      return NextResponse.json({ success: true, projects: projects.rows, employees: employees.rows, tokens: tokens.rows, attendance: attendance.rows, workLogs: workLogs.rows, stats });
     }
 
-    // --- 2. CREATE EMPLOYEE (Admin Only) ---
+    // --- 2. CREATE ADVANCED PROJECT ---
+    if (action === 'create_project') {
+      const { name, client, budget, start, end, status } = body;
+      await pool.query(
+        'INSERT INTO projects (project_name, client_name, budget_total, budget_paid, start_date, end_date, status, completion_percent) VALUES ($1, $2, $3, 0, $4, $5, $6, 0)',
+        [name, client, budget, start, end, status || 'Planning']
+      );
+      return NextResponse.json({ success: true });
+    }
+
+    // --- 3. APPROVE TOKEN (Cost Control) ---
+    if (action === 'update_token') {
+      const { tokenId, status, amount, projectId } = body;
+      await pool.query('UPDATE tokens SET status = $1 WHERE id = $2', [status, tokenId]);
+      
+      // If approved, add to "Budget Paid" of that project
+      if (status === 'Approved') {
+         await pool.query('UPDATE projects SET budget_paid = budget_paid + $1 WHERE id = $2', [amount, projectId]);
+      }
+      return NextResponse.json({ success: true });
+    }
+
+    // --- 4. CREATE EMPLOYEE ---
     if (action === 'create_employee') {
       const { username, password, fullName, doj } = body;
-      // Hash the password so it is secure
       const hashedPassword = await bcrypt.hash(password, 10);
-      
       await pool.query(
         'INSERT INTO users (username, password, full_name, role, date_of_joining) VALUES ($1, $2, $3, $4, $5)', 
         [username, hashedPassword, fullName, 'employee', doj]
       );
-      return NextResponse.json({ success: true });
-    }
-
-    // --- 3. RESET PASSWORD ---
-    // Note: We cannot "Retrieve" a hashed password, we can only set a new one.
-    if (action === 'reset_password') {
-      const { username, newPassword } = body;
-      const hashedPassword = await bcrypt.hash(newPassword, 10);
-      await pool.query('UPDATE users SET password = $1 WHERE username = $2', [hashedPassword, username]);
-      return NextResponse.json({ success: true });
-    }
-
-    // --- 4. MANUAL ATTENDANCE ---
-    if (action === 'manual_attendance') {
-      const { username, location } = body;
-      await pool.query(
-        'INSERT INTO attendance (username, location_name, latitude, longitude) VALUES ($1, $2, 0, 0)', 
-        [username, location || 'Manual Entry by Admin']
-      );
-      return NextResponse.json({ success: true });
-    }
-
-    // --- 5. APPROVE/REJECT WORK ---
-    if (action === 'review_task') {
-      const { taskId, status, remark } = body; // Status: 'Successful', 'Unsuccessful'
-      await pool.query(
-        'UPDATE tasks SET status = $1, admin_remark = $2 WHERE id = $3', 
-        [status, remark, taskId]
-      );
-      return NextResponse.json({ success: true });
-    }
-
-    // --- Standard Actions ---
-    if (action === 'create_project') {
-      const { name, budget } = body;
-      await pool.query('INSERT INTO projects (project_name, budget_total, budget_paid, status, completion_percent) VALUES ($1, $2, 0, $3, 0)', [name, budget, 'Active']);
-      return NextResponse.json({ success: true });
-    }
-    if (action === 'assign_task') {
-      const { description, employee, projectId } = body;
-      await pool.query('INSERT INTO tasks (description, assigned_to, project_id, status) VALUES ($1, $2, $3, $4)', [description, employee, projectId, 'Pending']);
-      return NextResponse.json({ success: true });
-    }
-    if (action === 'update_token') {
-      const { tokenId, status } = body;
-      await pool.query('UPDATE tokens SET status = $1 WHERE id = $2', [status, tokenId]);
       return NextResponse.json({ success: true });
     }
 
