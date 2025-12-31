@@ -18,12 +18,18 @@ export async function POST(request) {
       const employees = await pool.query("SELECT username, full_name, role, date_of_joining FROM users WHERE role = 'employee'");
       const tokens = await pool.query('SELECT * FROM tokens ORDER BY status DESC, id DESC');
       const attendance = await pool.query('SELECT * FROM attendance ORDER BY clock_in_time DESC LIMIT 15');
-      const workLogs = await pool.query(`
-        SELECT w.*, p.project_name 
-        FROM work_logs w 
-        JOIN projects p ON w.project_id = p.id 
-        ORDER BY w.log_date DESC, w.id DESC LIMIT 20
-      `);
+      
+      // Get Work Logs (New Feature)
+      // Note: If you haven't added work_logs table yet, this part might return empty, which is fine.
+      let workLogs = { rows: [] };
+      try {
+        workLogs = await pool.query(`
+          SELECT w.*, p.project_name 
+          FROM work_logs w 
+          JOIN projects p ON w.project_id = p.id 
+          ORDER BY w.log_date DESC, w.id DESC LIMIT 20
+        `);
+      } catch (e) { console.log("Work logs table missing, skipping"); }
 
       // Calculate Total Stats
       const stats = {
