@@ -5,7 +5,7 @@ export default function BitaERP() {
   // --- STATE ---
   const [user, setUser] = useState(null);
   const [view, setView] = useState('login'); 
-  const [activeTab, setActiveTab] = useState('dashboard'); // dashboard, projects, team, finance, reports
+  const [activeTab, setActiveTab] = useState('dashboard'); // dashboard, projects, finance
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null); // Stores all dashboard data
 
@@ -40,8 +40,7 @@ export default function BitaERP() {
         loadAdminData();
         setView('admin');
       } else {
-        // Redirect to employee view (Simplified for this update)
-        alert("Employee Login Successful (UI Update Pending)");
+        alert("Employee Login Successful. (Please use Employee App)");
       }
     } else {
       alert('❌ ' + result.message);
@@ -114,7 +113,7 @@ export default function BitaERP() {
         {/* SIDEBAR */}
         <div style={{ width: '250px', background: theme.sidebar, color: 'white', padding: '20px', display: 'flex', flexDirection: 'column' }}>
           <div style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '40px', paddingLeft: '10px' }}>BITA <span style={{color:theme.primary}}>ADMIN</span></div>
-          {['Dashboard', 'Projects', 'Finance', 'Work Reports', 'Team'].map(item => (
+          {['Dashboard', 'Projects', 'Finance', 'Team'].map(item => (
             <div 
               key={item} 
               onClick={() => setActiveTab(item.toLowerCase().replace(' ', ''))}
@@ -148,23 +147,11 @@ export default function BitaERP() {
                 <StatCard title="Pending Requests" value={data.tokens.filter(t => t.status === 'Pending').length} sub="Needs Approval" color="#dc2626" />
               </div>
 
+              {/* Recent Logs & Attendance */}
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px' }}>
-                {/* Recent Logs */}
-                <div style={{ background: theme.card, padding: '20px', borderRadius: '12px', border: `1px solid ${theme.border}` }}>
-                  <h3>Recent Site Activity</h3>
-                  {data.workLogs.length === 0 ? <p style={{color:'#94a3b8'}}>No updates today.</p> : null}
-                  {data.workLogs.map(log => (
-                     <div key={log.id} style={{ borderBottom: `1px solid ${theme.border}`, padding: '10px 0' }}>
-                        <div style={{ fontWeight: 'bold' }}>{log.project_name} <Badge status={log.status} /></div>
-                        <div style={{ color: '#64748b', fontSize: '0.9rem' }}>{log.activity_description}</div>
-                        <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>By {log.username} • {new Date(log.log_date).toLocaleDateString()}</div>
-                     </div>
-                  ))}
-                </div>
-
-                {/* Live Attendance */}
                 <div style={{ background: theme.card, padding: '20px', borderRadius: '12px', border: `1px solid ${theme.border}` }}>
                    <h3>📍 Live Force</h3>
+                   {data.attendance.length === 0 ? <p style={{color:'#94a3b8'}}>No active check-ins.</p> : null}
                    {data.attendance.map(a => (
                      <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: `1px solid ${theme.border}` }}>
                         <div>
@@ -214,18 +201,12 @@ export default function BitaERP() {
                          </div>
                          <div style={{color:'#64748b', fontSize:'0.9rem', marginBottom:'15px'}}>{p.client_name || 'No Client'}</div>
                          
-                         {/* Financial Bar */}
                          <div style={{marginBottom:'5px', fontSize:'0.8rem', display:'flex', justifyContent:'space-between'}}>
                             <span>Spent: ₹{p.budget_paid}</span>
                             <span>Budget: ₹{p.budget_total}</span>
                          </div>
                          <div style={{width:'100%', height:'8px', background:'#f1f5f9', borderRadius:'4px', overflow:'hidden'}}>
                             <div style={{width: `${(p.budget_paid/p.budget_total)*100}%`, height:'100%', background: theme.primary}}></div>
-                         </div>
-                         
-                         <div style={{marginTop:'15px', paddingTop:'15px', borderTop:'1px solid #f1f5f9', fontSize:'0.8rem', color:'#94a3b8', display:'flex', justifyContent:'space-between'}}>
-                            <span>Start: {p.start_date ? new Date(p.start_date).toLocaleDateString() : 'TBD'}</span>
-                            <span>End: {p.end_date ? new Date(p.end_date).toLocaleDateString() : 'TBD'}</span>
                          </div>
                       </div>
                    ))}
@@ -270,11 +251,6 @@ export default function BitaERP() {
                 </div>
              </div>
           )}
-          
-          {/* Work Reports and Team can be added similarly */}
-          {activeTab === 'workreports' && <h2>Work Reports Coming Soon</h2>}
-          {activeTab === 'team' && <h2>Team Management Coming Soon</h2>}
-
         </div>
       </div>
     );
