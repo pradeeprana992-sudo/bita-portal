@@ -15,7 +15,7 @@ export async function POST(request) {
     // --- 1. DASHBOARD DATA ---
     if (action === 'get_dashboard') {
       const projects = await pool.query('SELECT * FROM projects ORDER BY id DESC');
-      const employees = await pool.query("SELECT username, full_name, role, date_of_joining FROM users WHERE role = 'employee'");
+      const employees = await pool.query("SELECT username, full_name, role, date_of_joining FROM users WHERE role = 'employee' ORDER BY id DESC");
       const tokens = await pool.query('SELECT * FROM tokens ORDER BY status DESC, id DESC');
       const attendance = await pool.query('SELECT * FROM attendance ORDER BY clock_in_time DESC LIMIT 15');
       
@@ -58,14 +58,27 @@ export async function POST(request) {
       return NextResponse.json({ success: true });
     }
 
-    // --- 4. MANAGE EMPLOYEES ---
+    // --- 4. CREATE EMPLOYEE (AUTO-ID) ---
     if (action === 'create_employee') {
-      const { username, password, fullName, doj } = body;
+      const { password, fullName, doj } = body;
+      
+      // A. Generate Auto ID (BISPLE01, BISPLE02...)
+      const countResult = await pool.query("SELECT COUNT(*) FROM users WHERE role = 'employee'");
+      const nextNum = parseInt(countResult.rows[0].count) + 1;
+      const autoUsername = `BISPLE${nextNum.toString().padStart(2, '0')}`; // Adds leading zero
+
+      // B. Hash Password
       const hashedPassword = await bcrypt.hash(password, 10);
-      await pool.query('INSERT INTO users (username, password, full_name, role, date_of_joining) VALUES ($1, $2, $3, $4, $5)', [username, hashedPassword, fullName, 'employee', doj]);
-      return NextResponse.json({ success: true });
+      
+      // C. Save
+      await pool.query(
+        'INSERT INTO users (username, password, full_name, role, date_of_joining) VALUES ($1, $2, $3, $4, $5)', 
+        [autoUsername, hashedPassword, fullName, 'employee', doj]
+      );
+      return NextResponse.json({ success: true, newId: autoUsername });
     }
 
+    // --- 5. RESET PASSWORD ---
     if (action === 'reset_password') {
       const { username, newPassword } = body;
       const hashedPassword = await bcrypt.hash(newPassword, 10);
