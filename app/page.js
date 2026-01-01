@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function BitaERP() {
   // --- STATE MANAGEMENT ---
@@ -9,7 +9,7 @@ export default function BitaERP() {
   const [loading, setLoading] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
-  // Data Placeholders (These connect to your API)
+  // Data Placeholders
   const [adminData, setAdminData] = useState(null);
   const [empData, setEmpData] = useState(null);
 
@@ -18,58 +18,76 @@ export default function BitaERP() {
   const [newProject, setNewProject] = useState({ name: '', client: '', budget: '', start: '', end: '', status: 'Planning' });
   const [newEmp, setNewEmp] = useState({ fullName: '', password: '', doj: '' });
   
-  // --- STYLING CONSTANTS ---
+  // --- STYLING ---
   const colors = {
-    primary: '#f97316', // Orange
-    primaryHover: '#ea580c',
-    dark: '#0f172a',    // Navy
-    light: '#f1f5f9',   // Light Grey
-    white: '#ffffff',
-    success: '#10b981', // Green
-    danger: '#ef4444',  // Red
-    textMain: '#334155',
-    textLight: '#94a3b8',
-    border: '#e2e8f0'
+    primary: '#f97316', dark: '#0f172a', light: '#f1f5f9', white: '#ffffff',
+    success: '#10b981', danger: '#ef4444', textMain: '#334155', textLight: '#94a3b8', border: '#e2e8f0'
   };
 
   const styles = {
     card: {
       background: 'white', borderRadius: '16px', padding: '24px',
-      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)',
-      border: `1px solid ${colors.border}`
+      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)', border: `1px solid ${colors.border}`
     },
     input: {
       width: '100%', padding: '14px', borderRadius: '10px', border: `1px solid ${colors.border}`,
-      background: '#f8fafc', fontSize: '1rem', outline: 'none', transition: 'all 0.2s',
-      marginBottom: '15px'
+      background: '#f8fafc', marginBottom: '15px'
     },
     button: {
       width: '100%', padding: '14px', borderRadius: '10px', border: 'none',
-      background: colors.primary, color: 'white', fontWeight: '600', fontSize: '1rem',
-      cursor: 'pointer', transition: 'background 0.2s', boxShadow: '0 4px 12px rgba(249, 115, 22, 0.2)'
+      background: colors.primary, color: 'white', fontWeight: '600', cursor: 'pointer'
     },
     navItem: (active) => ({
       padding: '12px 16px', margin: '4px 0', borderRadius: '8px', cursor: 'pointer',
-      display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.95rem',
+      display: 'flex', alignItems: 'center', gap: '12px',
       background: active ? 'rgba(255,255,255,0.1)' : 'transparent',
-      color: active ? colors.primary : '#94a3b8',
-      fontWeight: active ? '600' : '500', transition: 'all 0.2s'
+      color: active ? colors.primary : '#94a3b8', fontWeight: active ? '600' : '500'
     })
   };
 
-  // --- API CALLS (Keeping logic same, improving UI) ---
+  // --- 1. AUTO-LOGIN (THE FIX) ---
+  useEffect(() => {
+    // Check if user is saved in browser memory
+    const savedUser = localStorage.getItem('bita_user');
+    if (savedUser) {
+      const parsedUser = JSON.parse(savedUser);
+      setUser(parsedUser);
+      
+      // Restore the correct view and fetch data immediately
+      if (parsedUser.role === 'admin') {
+        setView('admin');
+        fetch('/api/admin', { method: 'POST', body: JSON.stringify({ action: 'get_dashboard' }) })
+          .then(r => r.json()).then(d => d.success && setAdminData(d));
+      } else {
+        setView('employee');
+        fetch('/api/employee', { method: 'POST', body: JSON.stringify({ action: 'get_data', username: parsedUser.username }) })
+          .then(r => r.json()).then(d => d.success && setEmpData(d));
+      }
+    }
+  }, []); // Runs once when page loads
+
+  // --- API CALLS ---
   async function handleLogin() {
     setLoading(true);
     try {
       const res = await fetch('/api/login', { method: 'POST', body: JSON.stringify(loginForm) });
       const result = await res.json();
       setLoading(false);
+      
       if (result.success) {
+        // SAVE USER TO BROWSER MEMORY
+        localStorage.setItem('bita_user', JSON.stringify(result.user));
+        
         setUser(result.user);
         if (result.user.role === 'admin') { loadAdminData(); setView('admin'); }
         else { loadEmployeeData(result.user.username); setView('employee'); }
       } else { alert('❌ ' + result.message); }
     } catch(e) { setLoading(false); alert('System Error'); }
+  }
+
+  function handleLogout() {
+    localStorage.removeItem('bita_user'); // Clear memory
+    window.location.reload(); // Refresh to login screen
   }
 
   async function loadAdminData() {
@@ -84,7 +102,7 @@ export default function BitaERP() {
     if(result.success) setEmpData(result);
   }
 
-  // --- ACTIONS WRAPPERS ---
+  // --- WRAPPERS ---
   async function createProject() { await fetch('/api/admin', { method:'POST', body:JSON.stringify({action:'create_project', ...newProject})}); loadAdminData(); setActiveTab('projects'); alert('Project Created'); }
   async function createEmployee() { const res = await fetch('/api/admin', { method:'POST', body:JSON.stringify({action:'create_employee', ...newEmp})}); const data = await res.json(); if(data.success){ alert(`ID: ${data.newId}\nPass: ${newEmp.password}`); loadAdminData(); }}
   async function handleToken(id, st, amt, pid) { await fetch('/api/admin', {method:'POST', body:JSON.stringify({action:'update_token', tokenId:id, status:st, amount:amt, projectId:pid})}); loadAdminData(); }
@@ -96,7 +114,6 @@ export default function BitaERP() {
     if(['Active', 'Approved', 'On Track'].includes(status)) { bg = '#dcfce7'; col = '#15803d'; dot = '#22c55e'; }
     if(['Pending', 'Planning'].includes(status)) { bg = '#fef9c3'; col = '#a16207'; dot = '#eab308'; }
     if(['Rejected', 'Issue'].includes(status)) { bg = '#fee2e2'; col = '#b91c1c'; dot = '#ef4444'; }
-    
     return (
       <span style={{ background: bg, color: col, padding: '6px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '700', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
         <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: dot }}></span> {status.toUpperCase()}
@@ -109,7 +126,6 @@ export default function BitaERP() {
       <div style={{color: colors.textLight, fontSize: '0.85rem', fontWeight:'600', textTransform:'uppercase', letterSpacing:'0.5px'}}>{label}</div>
       <div style={{fontSize: '2rem', fontWeight: '800', color: colors.dark, margin: '10px 0'}}>{val}</div>
       <div style={{fontSize: '0.85rem', color: colors.textLight}}>{sub}</div>
-      {/* Decorative Circle */}
       <div style={{position:'absolute', right:'-20px', top:'-20px', width:'100px', height:'100px', borderRadius:'50%', background:accent||colors.primary, opacity:'0.1'}}></div>
     </div>
   );
@@ -143,27 +159,23 @@ export default function BitaERP() {
             <div style={{fontSize: '1.25rem', fontWeight: '800'}}>BITA <span style={{color:colors.primary}}>ERP</span></div>
             <div style={{fontSize: '0.75rem', opacity: 0.6}}>Admin Console v2.0</div>
           </div>
-          
           <nav style={{flex: 1}}>
             {['Dashboard', 'Projects', 'Finance', 'Team', 'Reports'].map(item => (
               <div key={item} onClick={() => setActiveTab(item.toLowerCase())} style={styles.navItem(activeTab === item.toLowerCase())}>
-                {/* Simulated Icons with Emojis for zero-config */}
                 <span>{item==='Dashboard'?'📊':item==='Projects'?'🏗️':item==='Finance'?'💸':item==='Team'?'👷':item==='Reports'?'📝':''}</span> 
                 {item}
               </div>
             ))}
           </nav>
-
           <div style={{borderTop: '1px solid #334155', paddingTop: '20px'}}>
             <div style={{fontSize:'0.9rem', fontWeight:'600'}}>{user.full_name}</div>
-            <button onClick={()=>setView('login')} style={{background:'none', border:'none', color:'#ef4444', fontSize:'0.8rem', cursor:'pointer', padding:0, marginTop:'5px'}}>Log Out</button>
+            <button onClick={handleLogout} style={{background:'none', border:'none', color:'#ef4444', fontSize:'0.8rem', cursor:'pointer', padding:0, marginTop:'5px'}}>Log Out</button>
           </div>
         </div>
 
         {/* MAIN CONTENT AREA */}
         <div style={{ flex: 1, padding: '40px', overflowY: 'auto' }}>
           
-          {/* HEADER */}
           <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'30px'}}>
             <h1 style={{fontSize:'1.75rem', fontWeight:'800', color:colors.dark, textTransform:'capitalize'}}>{activeTab}</h1>
             <div style={{background:'white', padding:'8px 16px', borderRadius:'30px', boxShadow:'0 2px 10px rgba(0,0,0,0.05)', fontSize:'0.9rem', fontWeight:'600', color:colors.primary}}>
@@ -174,7 +186,6 @@ export default function BitaERP() {
           {/* DASHBOARD TAB */}
           {activeTab === 'dashboard' && (
             <div style={{display:'grid', gap:'24px'}}>
-              {/* Stats Row */}
               <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(240px, 1fr))', gap:'24px'}}>
                 <StatBox label="Active Projects" val={adminData.stats.active_projects} sub="Currently ongoing" accent="#3b82f6" />
                 <StatBox label="Total Spent" val={`₹${(adminData.stats.total_spent/100000).toFixed(2)}L`} sub="Disbursed Funds" accent={colors.primary} />
@@ -182,7 +193,6 @@ export default function BitaERP() {
               </div>
 
               <div style={{display:'grid', gridTemplateColumns:'2fr 1fr', gap:'24px'}}>
-                {/* Recent Logs */}
                 <div style={styles.card}>
                   <h3 style={{marginTop:0, marginBottom:'20px', color:colors.dark}}>Recent Site Updates</h3>
                   {adminData.workLogs.length === 0 && <div style={{textAlign:'center', padding:'20px', color:colors.textLight}}>No activity yet today.</div>}
@@ -199,7 +209,6 @@ export default function BitaERP() {
                   ))}
                 </div>
 
-                {/* Live Attendance */}
                 <div style={styles.card}>
                    <h3 style={{marginTop:0, marginBottom:'20px', color:colors.dark}}>Live Force 📍</h3>
                    {adminData.attendance.map(a => (
@@ -244,7 +253,6 @@ export default function BitaERP() {
                       </div>
                       <StatusBadge status={p.status} />
                     </div>
-                    {/* Progress Bar */}
                     <div style={{background:'#f1f5f9', height:'8px', borderRadius:'4px', overflow:'hidden', marginBottom:'8px'}}>
                       <div style={{width:`${(p.budget_paid/p.budget_total)*100}%`, background:colors.primary, height:'100%'}}></div>
                     </div>
@@ -306,99 +314,4 @@ export default function BitaERP() {
                    <button onClick={createEmployee} style={{...styles.button, width:'auto', padding:'14px 20px'}}>Hire Now</button>
                 </div>
                 <div style={{marginTop:'30px'}}>
-                  <h4 style={{color:colors.textLight, textTransform:'uppercase', fontSize:'0.8rem'}}>Current Staff</h4>
-                  <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(200px, 1fr))', gap:'15px'}}>
-                    {adminData.employees.map(e => (
-                      <div key={e.username} style={{border:`1px solid ${colors.border}`, padding:'15px', borderRadius:'10px', display:'flex', alignItems:'center', gap:'10px'}}>
-                        <div style={{background:colors.primary, color:'white', width:'40px', height:'40px', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:'bold'}}>{e.full_name.charAt(0)}</div>
-                        <div>
-                          <div style={{fontWeight:'700', fontSize:'0.9rem'}}>{e.full_name}</div>
-                          <div style={{fontSize:'0.75rem', color:colors.textLight}}>{e.username}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-             </div>
-          )}
-
-        </div>
-      </div>
-    );
-  }
-
-  // ---------------- VIEW: EMPLOYEE (MOBILE APP STYLE) ----------------
-  
-  if (view === 'employee' && empData) {
-    return (
-      <div style={{ fontFamily: '"Inter", sans-serif', background: '#0f172a', minHeight: '100vh', color: 'white', paddingBottom:'80px' }}>
-         {/* APP HEADER */}
-         <div style={{padding:'20px', background:'#1e293b', display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'1px solid #334155'}}>
-            <div>
-              <div style={{fontSize:'0.8rem', color:'#94a3b8'}}>Welcome Back,</div>
-              <div style={{fontSize:'1.2rem', fontWeight:'700'}}>{user.full_name}</div>
-            </div>
-            <button onClick={()=>setView('login')} style={{background:'#334155', border:'none', color:'white', padding:'8px 12px', borderRadius:'8px', fontSize:'0.8rem'}}>Logout</button>
-         </div>
-
-         <div style={{padding:'20px'}}>
-            {/* BIG CLOCK IN BUTTON */}
-            <button onClick={clockIn} style={{width:'100%', padding:'25px', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', border:'none', borderRadius:'20px', display:'flex', alignItems:'center', justifyContent:'center', gap:'15px', boxShadow:'0 10px 25px rgba(16, 185, 129, 0.3)', marginBottom:'30px'}}>
-               <span style={{fontSize:'2rem'}}>📍</span>
-               <div style={{textAlign:'left'}}>
-                 <div style={{fontSize:'1.2rem', fontWeight:'800', color:'white'}}>CLOCK IN NOW</div>
-                 <div style={{fontSize:'0.8rem', color:'rgba(255,255,255,0.8)'}}>Mark your attendance via GPS</div>
-               </div>
-            </button>
-
-            {/* DAILY REPORT SECTION */}
-            <div style={{background:'#1e293b', borderRadius:'20px', padding:'20px', marginBottom:'20px'}}>
-               <h3 style={{marginTop:0, display:'flex', alignItems:'center', gap:'10px'}}>📝 Daily Report</h3>
-               <select style={{...styles.input, background:'#0f172a', border:'1px solid #334155', color:'white'}}>
-                  <option>Select Project Site...</option>
-                  {empData.projects.map(p=><option key={p.id} value={p.id}>{p.project_name}</option>)}
-               </select>
-               <input placeholder="What did you do today?" style={{...styles.input, background:'#0f172a', border:'1px solid #334155', color:'white'}} />
-               <input placeholder="Materials Used (e.g. 5 Bags Cement)" style={{...styles.input, background:'#0f172a', border:'1px solid #334155', color:'white'}} />
-               <button style={{...styles.button, background:colors.primary}}>Submit Report</button>
-            </div>
-
-            {/* MONEY REQUEST */}
-            <div style={{background:'#1e293b', borderRadius:'20px', padding:'20px'}}>
-               <h3 style={{marginTop:0, display:'flex', alignItems:'center', gap:'10px'}}>💸 Request Funds</h3>
-               <div style={{display:'flex', gap:'10px'}}>
-                  <input placeholder="Amount (₹)" style={{...styles.input, background:'#0f172a', border:'1px solid #334155', color:'white', flex:1}} />
-                  <input placeholder="Reason" style={{...styles.input, background:'#0f172a', border:'1px solid #334155', color:'white', flex:2}} />
-               </div>
-               <button style={{...styles.button, background:'#3b82f6'}}>Send Request</button>
-
-               <div style={{marginTop:'20px', paddingTop:'15px', borderTop:'1px solid #334155'}}>
-                  <div style={{fontSize:'0.8rem', color:'#94a3b8', marginBottom:'10px'}}>RECENT REQUESTS</div>
-                  {empData.tokens.map(t=>(
-                    <div key={t.id} style={{display:'flex', justifyContent:'space-between', padding:'10px 0', borderBottom:'1px solid #334155', fontSize:'0.9rem'}}>
-                       <span>{t.reason}</span>
-                       <span style={{color:t.status==='Approved'?'#4ade80':t.status==='Rejected'?'#ef4444':'#fbbf24'}}>{t.status}</span>
-                    </div>
-                  ))}
-               </div>
-            </div>
-         </div>
-
-         {/* BOTTOM NAVIGATION (MOBILE APP FEEL) */}
-         <div style={{position:'fixed', bottom:0, width:'100%', background:'#1e293b', padding:'15px 0', display:'flex', justifyContent:'space-around', borderTop:'1px solid #334155'}}>
-            <div style={{textAlign:'center', color:colors.primary, fontSize:'0.7rem'}}>
-               <div style={{fontSize:'1.2rem', marginBottom:'4px'}}>🏠</div>Home
-            </div>
-            <div style={{textAlign:'center', color:'#94a3b8', fontSize:'0.7rem'}}>
-               <div style={{fontSize:'1.2rem', marginBottom:'4px'}}>📋</div>Tasks
-            </div>
-            <div style={{textAlign:'center', color:'#94a3b8', fontSize:'0.7rem'}}>
-               <div style={{fontSize:'1.2rem', marginBottom:'4px'}}>👤</div>Profile
-            </div>
-         </div>
-      </div>
-    );
-  }
-
-  return <div style={{height:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#f8fafc', color:'#64748b'}}>Loading Interface...</div>;
-}
+                  <h4 style={{color:colors.textL
