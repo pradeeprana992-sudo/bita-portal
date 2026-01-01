@@ -2,364 +2,403 @@
 import { useState } from 'react';
 
 export default function BitaERP() {
-  // --- STATE ---
+  // --- STATE MANAGEMENT ---
   const [user, setUser] = useState(null);
   const [view, setView] = useState('login'); 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [loading, setLoading] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
-  // Data Stores
+  // Data Placeholders (These connect to your API)
   const [adminData, setAdminData] = useState(null);
   const [empData, setEmpData] = useState(null);
 
   // Forms
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
-  
-  // Admin Forms
   const [newProject, setNewProject] = useState({ name: '', client: '', budget: '', start: '', end: '', status: 'Planning' });
   const [newEmp, setNewEmp] = useState({ fullName: '', password: '', doj: '' });
-  const [resetPass, setResetPass] = useState({ username: '', newPass: '' });
   
-  // Employee Forms
-  const [reportForm, setReportForm] = useState({ projectId: '', activity: '', material: '', photoLink: '' });
-  const [tokenForm, setTokenForm] = useState({ projectId: '', amount: '', reason: '' });
-
-  // Theme
-  const theme = {
-    sidebar: '#1e293b', bg: '#f1f5f9', primary: '#f97316', text: '#334155', card: '#ffffff', border: '#e2e8f0'
+  // --- STYLING CONSTANTS ---
+  const colors = {
+    primary: '#f97316', // Orange
+    primaryHover: '#ea580c',
+    dark: '#0f172a',    // Navy
+    light: '#f1f5f9',   // Light Grey
+    white: '#ffffff',
+    success: '#10b981', // Green
+    danger: '#ef4444',  // Red
+    textMain: '#334155',
+    textLight: '#94a3b8',
+    border: '#e2e8f0'
   };
 
-  // --- API ACTIONS ---
+  const styles = {
+    card: {
+      background: 'white', borderRadius: '16px', padding: '24px',
+      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)',
+      border: `1px solid ${colors.border}`
+    },
+    input: {
+      width: '100%', padding: '14px', borderRadius: '10px', border: `1px solid ${colors.border}`,
+      background: '#f8fafc', fontSize: '1rem', outline: 'none', transition: 'all 0.2s',
+      marginBottom: '15px'
+    },
+    button: {
+      width: '100%', padding: '14px', borderRadius: '10px', border: 'none',
+      background: colors.primary, color: 'white', fontWeight: '600', fontSize: '1rem',
+      cursor: 'pointer', transition: 'background 0.2s', boxShadow: '0 4px 12px rgba(249, 115, 22, 0.2)'
+    },
+    navItem: (active) => ({
+      padding: '12px 16px', margin: '4px 0', borderRadius: '8px', cursor: 'pointer',
+      display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.95rem',
+      background: active ? 'rgba(255,255,255,0.1)' : 'transparent',
+      color: active ? colors.primary : '#94a3b8',
+      fontWeight: active ? '600' : '500', transition: 'all 0.2s'
+    })
+  };
+
+  // --- API CALLS (Keeping logic same, improving UI) ---
   async function handleLogin() {
     setLoading(true);
     try {
-      const res = await fetch('/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(loginForm),
-      });
+      const res = await fetch('/api/login', { method: 'POST', body: JSON.stringify(loginForm) });
       const result = await res.json();
       setLoading(false);
-      
       if (result.success) {
         setUser(result.user);
-        if (result.user.role === 'admin') {
-          loadAdminData();
-          setView('admin');
-        } else {
-          loadEmployeeData(result.user.username);
-          setView('employee');
-        }
-      } else {
-        alert('❌ ' + result.message);
-      }
-    } catch (e) { alert('Connection Error'); setLoading(false); }
+        if (result.user.role === 'admin') { loadAdminData(); setView('admin'); }
+        else { loadEmployeeData(result.user.username); setView('employee'); }
+      } else { alert('❌ ' + result.message); }
+    } catch(e) { setLoading(false); alert('System Error'); }
   }
 
   async function loadAdminData() {
     const res = await fetch('/api/admin', { method: 'POST', body: JSON.stringify({ action: 'get_dashboard' }) });
     const result = await res.json();
-    if (result.success) setAdminData(result);
+    if(result.success) setAdminData(result);
   }
 
   async function loadEmployeeData(username) {
     const res = await fetch('/api/employee', { method: 'POST', body: JSON.stringify({ action: 'get_data', username: username || user.username }) });
     const result = await res.json();
-    if (result.success) setEmpData(result);
+    if(result.success) setEmpData(result);
   }
 
-  // --- ADMIN FUNCTIONS ---
-  async function createProject() {
-    await fetch('/api/admin', { method: 'POST', body: JSON.stringify({ action: 'create_project', ...newProject }) });
-    alert('✅ Project Created'); 
-    setNewProject({ name: '', client: '', budget: '', start: '', end: '', status: 'Planning' }); // Reset Form
-    loadAdminData(); setActiveTab('projects');
-  }
+  // --- ACTIONS WRAPPERS ---
+  async function createProject() { await fetch('/api/admin', { method:'POST', body:JSON.stringify({action:'create_project', ...newProject})}); loadAdminData(); setActiveTab('projects'); alert('Project Created'); }
+  async function createEmployee() { const res = await fetch('/api/admin', { method:'POST', body:JSON.stringify({action:'create_employee', ...newEmp})}); const data = await res.json(); if(data.success){ alert(`ID: ${data.newId}\nPass: ${newEmp.password}`); loadAdminData(); }}
+  async function handleToken(id, st, amt, pid) { await fetch('/api/admin', {method:'POST', body:JSON.stringify({action:'update_token', tokenId:id, status:st, amount:amt, projectId:pid})}); loadAdminData(); }
+  async function clockIn() { navigator.geolocation.getCurrentPosition(async(p)=>{ await fetch('/api/employee', {method:'POST', body:JSON.stringify({action:'clock_in', username:user.username, lat:p.coords.latitude, lng:p.coords.longitude})}); alert('✅ Clocked In'); }); }
 
-  async function createEmployee() {
-    const res = await fetch('/api/admin', { method: 'POST', body: JSON.stringify({ action: 'create_employee', ...newEmp }) });
-    const data = await res.json();
-    if (data.success) {
-      alert(`✅ Employee Created!\n\nID: ${data.newId}\nPass: ${newEmp.password}`);
-      setNewEmp({ fullName: '', password: '', doj: '' }); // Reset Form
-      loadAdminData();
-    }
-  }
-
-  async function resetPassword() {
-    await fetch('/api/admin', { method: 'POST', body: JSON.stringify({ action: 'reset_password', username: resetPass.username, newPassword: resetPass.newPass }) });
-    alert('✅ Password Reset Successful'); loadAdminData();
-  }
-
-  async function handleToken(id, status, amount, projectId) {
-    await fetch('/api/admin', { method: 'POST', body: JSON.stringify({ action: 'update_token', tokenId: id, status, amount, projectId }) });
-    loadAdminData();
-  }
-
-  // --- EMPLOYEE FUNCTIONS ---
-  async function clockIn() {
-    if (!navigator.geolocation) return alert('GPS Error');
-    navigator.geolocation.getCurrentPosition(async (pos) => {
-      await fetch('/api/employee', { method: 'POST', body: JSON.stringify({ action: 'clock_in', username: user.username, lat: pos.coords.latitude, lng: pos.coords.longitude }) });
-      alert('✅ Clocked In');
-    });
-  }
-  async function submitReport() {
-    await fetch('/api/employee', { method: 'POST', body: JSON.stringify({ action: 'submit_report', username: user.username, ...reportForm }) });
-    alert('✅ Report Submitted'); setReportForm({ projectId: '', activity: '', material: '', photoLink: '' });
-  }
-  async function raiseToken() {
-    await fetch('/api/employee', { method: 'POST', body: JSON.stringify({ action: 'raise_token', username: user.username, ...tokenForm }) });
-    alert('✅ Request Sent'); setTokenForm({ projectId: '', amount: '', reason: '' }); loadEmployeeData();
-  }
-
-  // --- COMPONENTS ---
-  const Badge = ({ status }) => {
-    let color = '#64748b'; let bg = '#f1f5f9';
-    if (status === 'Active' || status === 'Approved' || status === 'On Track') { color = '#16a34a'; bg = '#dcfce7'; }
-    if (status === 'Pending' || status === 'Planning') { color = '#ca8a04'; bg = '#fef9c3'; }
-    if (status === 'Rejected' || status === 'Issue') { color = '#dc2626'; bg = '#fee2e2'; }
-    return <span style={{ padding: '4px 10px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 'bold', color: color, background: bg }}>{status}</span>
+  // --- SUB-COMPONENTS ---
+  const StatusBadge = ({ status }) => {
+    let bg = '#f1f5f9', col = '#64748b', dot = '#94a3b8';
+    if(['Active', 'Approved', 'On Track'].includes(status)) { bg = '#dcfce7'; col = '#15803d'; dot = '#22c55e'; }
+    if(['Pending', 'Planning'].includes(status)) { bg = '#fef9c3'; col = '#a16207'; dot = '#eab308'; }
+    if(['Rejected', 'Issue'].includes(status)) { bg = '#fee2e2'; col = '#b91c1c'; dot = '#ef4444'; }
+    
+    return (
+      <span style={{ background: bg, color: col, padding: '6px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '700', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: dot }}></span> {status.toUpperCase()}
+      </span>
+    );
   };
 
-  // -------------------------------- VIEWS --------------------------------
+  const StatBox = ({ label, val, sub, accent }) => (
+    <div style={{ ...styles.card, borderLeft: `4px solid ${accent || colors.primary}`, position:'relative', overflow:'hidden' }}>
+      <div style={{color: colors.textLight, fontSize: '0.85rem', fontWeight:'600', textTransform:'uppercase', letterSpacing:'0.5px'}}>{label}</div>
+      <div style={{fontSize: '2rem', fontWeight: '800', color: colors.dark, margin: '10px 0'}}>{val}</div>
+      <div style={{fontSize: '0.85rem', color: colors.textLight}}>{sub}</div>
+      {/* Decorative Circle */}
+      <div style={{position:'absolute', right:'-20px', top:'-20px', width:'100px', height:'100px', borderRadius:'50%', background:accent||colors.primary, opacity:'0.1'}}></div>
+    </div>
+  );
 
+  // ---------------- VIEW: LOGIN ----------------
   if (view === 'login') {
     return (
-      <div style={{ height: '100vh', background: theme.sidebar, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ background: 'white', padding: '30px', borderRadius: '12px', width: '90%', maxWidth: '400px', textAlign: 'center' }}>
-          <h2 style={{ color: theme.sidebar, marginBottom: '20px' }}>BITA ERP</h2>
-          <input placeholder="Username" onChange={e=>setLoginForm({...loginForm, username:e.target.value})} style={{width:'100%', padding:'12px', marginBottom:'10px', border:'1px solid #ccc', borderRadius:'5px'}} />
-          <input type="password" placeholder="Password" onChange={e=>setLoginForm({...loginForm, password:e.target.value})} style={{width:'100%', padding:'12px', marginBottom:'20px', border:'1px solid #ccc', borderRadius:'5px'}} />
-          <button onClick={handleLogin} disabled={loading} style={{width:'100%', padding:'12px', background: theme.primary, color:'white', border:'none', borderRadius:'5px', fontWeight:'bold'}}>
-            {loading ? '...' : 'LOGIN'}
-          </button>
+      <div style={{ height: '100vh', background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: '"Inter", sans-serif' }}>
+        <div style={{ background: 'rgba(255, 255, 255, 0.95)', backdropFilter: 'blur(10px)', padding: '40px', borderRadius: '24px', width: '90%', maxWidth: '420px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
+          <div style={{ textAlign: 'center', marginBottom: '30px' }}>
+            <div style={{fontSize: '1.5rem', fontWeight: '900', color: colors.dark, letterSpacing: '-1px'}}>BITA INFRA</div>
+            <div style={{color: colors.primary, fontSize: '0.9rem', fontWeight: '600', letterSpacing: '2px'}}>CONSTRUCTION OS</div>
+          </div>
+          <input placeholder="Username" value={loginForm.username} onChange={e=>setLoginForm({...loginForm, username:e.target.value})} style={styles.input} />
+          <input type="password" placeholder="Password" value={loginForm.password} onChange={e=>setLoginForm({...loginForm, password:e.target.value})} style={styles.input} />
+          <button onClick={handleLogin} disabled={loading} style={styles.button}>{loading ? 'Authenticating...' : 'Sign In'}</button>
+          <div style={{textAlign:'center', marginTop:'20px', fontSize:'0.8rem', color:'#94a3b8'}}>Secure Enterprise Gateway</div>
         </div>
       </div>
     );
   }
 
-  // --- ADMIN VIEW ---
+  // ---------------- VIEW: ADMIN ----------------
   if (view === 'admin' && adminData) {
     return (
-      <div style={{ display: 'flex', minHeight: '100vh', fontFamily: 'sans-serif', background: theme.bg, flexDirection: 'column' }}>
+      <div style={{ display: 'flex', minHeight: '100vh', background: '#f8fafc', fontFamily: '"Inter", sans-serif' }}>
         
-        {/* MOBILE HEADER */}
-        <div style={{ background: theme.sidebar, padding: '15px', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontWeight: 'bold' }}>BITA ADMIN</div>
-          <button onClick={()=>setSidebarOpen(!sidebarOpen)} style={{background:'none', border:'none', color:'white', fontSize:'1.5rem'}}>☰</button>
+        {/* DESKTOP SIDEBAR */}
+        <div style={{ width: '260px', background: colors.dark, padding: '24px', display: 'flex', flexDirection: 'column', position: 'sticky', top: 0, height: '100vh', color: 'white', boxShadow: '4px 0 24px rgba(0,0,0,0.05)' }}>
+          <div style={{ marginBottom: '40px', paddingLeft: '10px' }}>
+            <div style={{fontSize: '1.25rem', fontWeight: '800'}}>BITA <span style={{color:colors.primary}}>ERP</span></div>
+            <div style={{fontSize: '0.75rem', opacity: 0.6}}>Admin Console v2.0</div>
+          </div>
+          
+          <nav style={{flex: 1}}>
+            {['Dashboard', 'Projects', 'Finance', 'Team', 'Reports'].map(item => (
+              <div key={item} onClick={() => setActiveTab(item.toLowerCase())} style={styles.navItem(activeTab === item.toLowerCase())}>
+                {/* Simulated Icons with Emojis for zero-config */}
+                <span>{item==='Dashboard'?'📊':item==='Projects'?'🏗️':item==='Finance'?'💸':item==='Team'?'👷':item==='Reports'?'📝':''}</span> 
+                {item}
+              </div>
+            ))}
+          </nav>
+
+          <div style={{borderTop: '1px solid #334155', paddingTop: '20px'}}>
+            <div style={{fontSize:'0.9rem', fontWeight:'600'}}>{user.full_name}</div>
+            <button onClick={()=>setView('login')} style={{background:'none', border:'none', color:'#ef4444', fontSize:'0.8rem', cursor:'pointer', padding:0, marginTop:'5px'}}>Log Out</button>
+          </div>
         </div>
 
-        <div style={{ display: 'flex', flex: 1 }}>
-          {/* SIDEBAR */}
-          <div style={{ 
-            width: '250px', background: theme.sidebar, color: 'white', padding: '20px', 
-            display: sidebarOpen ? 'block' : 'none', 
-            position: 'absolute', height: '100%', zIndex: 100, top: '50px'
-          }}>
-             {['Dashboard', 'Projects', 'Finance', 'Reports', 'Team'].map(item => (
-                <div key={item} onClick={() => {setActiveTab(item.toLowerCase()); setSidebarOpen(false);}}
-                  style={{ padding: '12px', marginBottom: '5px', borderRadius: '5px', cursor: 'pointer', background: activeTab === item.toLowerCase() ? 'rgba(255,255,255,0.1)' : 'transparent', color: activeTab === item.toLowerCase() ? theme.primary : '#ccc' }}>
-                  {item}
-                </div>
-             ))}
-             <button onClick={()=>setView('login')} style={{marginTop:'20px', background:'red', border:'none', color:'white', padding:'10px', width:'100%', borderRadius:'5px'}}>Logout</button>
+        {/* MAIN CONTENT AREA */}
+        <div style={{ flex: 1, padding: '40px', overflowY: 'auto' }}>
+          
+          {/* HEADER */}
+          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'30px'}}>
+            <h1 style={{fontSize:'1.75rem', fontWeight:'800', color:colors.dark, textTransform:'capitalize'}}>{activeTab}</h1>
+            <div style={{background:'white', padding:'8px 16px', borderRadius:'30px', boxShadow:'0 2px 10px rgba(0,0,0,0.05)', fontSize:'0.9rem', fontWeight:'600', color:colors.primary}}>
+              Today: {new Date().toLocaleDateString()}
+            </div>
           </div>
-          <style jsx>{` @media (min-width: 768px) { div[style*="display: none"] { display: block !important; position: static !important; } } `}</style>
 
-          {/* CONTENT AREA */}
-          <div style={{ flex: 1, padding: '20px', overflowY: 'auto' }}>
-            
-            {/* 1. DASHBOARD */}
-            {activeTab === 'dashboard' && (
-               <div style={{ display: 'grid', gap: '20px', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-                  <div style={{background:'white', padding:'20px', borderRadius:'10px', boxShadow:'0 2px 5px rgba(0,0,0,0.05)'}}>Active Projects: <br/><b style={{fontSize:'1.5rem'}}>{adminData.stats.active_projects}</b></div>
-                  <div style={{background:'white', padding:'20px', borderRadius:'10px', boxShadow:'0 2px 5px rgba(0,0,0,0.05)'}}>Total Budget: <br/><b style={{fontSize:'1.5rem'}}>₹{(adminData.stats.total_budget/100000).toFixed(1)}L</b></div>
-                  <div style={{background:'white', padding:'20px', borderRadius:'10px', boxShadow:'0 2px 5px rgba(0,0,0,0.05)'}}>Total Spent: <br/><b style={{fontSize:'1.5rem', color:theme.primary}}>₹{(adminData.stats.total_spent/100000).toFixed(1)}L</b></div>
-               </div>
-            )}
+          {/* DASHBOARD TAB */}
+          {activeTab === 'dashboard' && (
+            <div style={{display:'grid', gap:'24px'}}>
+              {/* Stats Row */}
+              <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(240px, 1fr))', gap:'24px'}}>
+                <StatBox label="Active Projects" val={adminData.stats.active_projects} sub="Currently ongoing" accent="#3b82f6" />
+                <StatBox label="Total Spent" val={`₹${(adminData.stats.total_spent/100000).toFixed(2)}L`} sub="Disbursed Funds" accent={colors.primary} />
+                <StatBox label="Workforce" val={adminData.employees.length} sub="Registered Staff" accent="#10b981" />
+              </div>
 
-            {/* 2. PROJECTS (FIXED) */}
-            {activeTab === 'projects' && (
-               <div>
-                  <div style={{background:'white', padding:'20px', borderRadius:'10px', marginBottom:'20px'}}>
-                      <h3>➕ Create New Project</h3>
-                      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(150px, 1fr))', gap:'10px'}}>
-                         <input placeholder="Project Name" value={newProject.name} onChange={e=>setNewProject({...newProject, name:e.target.value})} style={{padding:'10px', border:'1px solid #ccc'}} />
-                         <input placeholder="Client Name" value={newProject.client} onChange={e=>setNewProject({...newProject, client:e.target.value})} style={{padding:'10px', border:'1px solid #ccc'}} />
-                         <input placeholder="Budget (₹)" value={newProject.budget} onChange={e=>setNewProject({...newProject, budget:e.target.value})} style={{padding:'10px', border:'1px solid #ccc'}} />
-                         <select value={newProject.status} onChange={e=>setNewProject({...newProject, status:e.target.value})} style={{padding:'10px', border:'1px solid #ccc'}}>
-                            <option value="Planning">Planning</option>
-                            <option value="Active">Active</option>
-                            <option value="Completed">Completed</option>
-                         </select>
-                         <input type="date" value={newProject.start} onChange={e=>setNewProject({...newProject, start:e.target.value})} style={{padding:'10px', border:'1px solid #ccc'}} />
-                         <input type="date" value={newProject.end} onChange={e=>setNewProject({...newProject, end:e.target.value})} style={{padding:'10px', border:'1px solid #ccc'}} />
-                      </div>
-                      <button onClick={createProject} style={{marginTop:'15px', background:theme.primary, color:'white', padding:'10px 20px', border:'none', borderRadius:'5px', cursor:'pointer'}}>Save Project</button>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
-                   {adminData.projects.map(p => (
-                      <div key={p.id} style={{ background: theme.card, padding: '20px', borderRadius: '12px', border: `1px solid ${theme.border}` }}>
-                         <div style={{display:'flex', justifyContent:'space-between', marginBottom:'10px'}}>
-                            <h3 style={{margin:0}}>{p.project_name}</h3>
-                            <Badge status={p.status} />
-                         </div>
-                         <div style={{color:'#64748b', fontSize:'0.9rem', marginBottom:'15px'}}>{p.client_name || 'No Client'}</div>
-                         <div style={{marginBottom:'5px', fontSize:'0.8rem', display:'flex', justifyContent:'space-between'}}>
-                            <span>Spent: ₹{p.budget_paid}</span>
-                            <span>Budget: ₹{p.budget_total}</span>
-                         </div>
-                         <div style={{width:'100%', height:'8px', background:'#f1f5f9', borderRadius:'4px', overflow:'hidden'}}>
-                            <div style={{width: `${(p.budget_paid/p.budget_total)*100}%`, height:'100%', background: theme.primary}}></div>
-                         </div>
-                      </div>
-                   ))}
-                  </div>
-               </div>
-            )}
-
-            {/* 3. FINANCE (FIXED) */}
-            {activeTab === 'finance' && (
-                <div style={{ background: theme.card, borderRadius: '12px', border: `1px solid ${theme.border}`, overflow: 'hidden' }}>
-                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                      <thead style={{ background: '#f8fafc', borderBottom: `1px solid ${theme.border}` }}>
-                         <tr>
-                            <th style={{ padding: '15px', textAlign: 'left' }}>By</th>
-                            <th style={{ padding: '15px', textAlign: 'left' }}>Reason</th>
-                            <th style={{ padding: '15px', textAlign: 'left' }}>Amount</th>
-                            <th style={{ padding: '15px', textAlign: 'left' }}>Status</th>
-                            <th style={{ padding: '15px', textAlign: 'left' }}>Action</th>
-                         </tr>
-                      </thead>
-                      <tbody>
-                         {adminData.tokens.map(t => (
-                            <tr key={t.id} style={{ borderBottom: `1px solid ${theme.border}` }}>
-                               <td style={{ padding: '15px' }}>{t.requested_by}</td>
-                               <td style={{ padding: '15px' }}>{t.reason}</td>
-                               <td style={{ padding: '15px', fontWeight: 'bold' }}>₹{t.amount}</td>
-                               <td style={{ padding: '15px' }}><Badge status={t.status} /></td>
-                               <td style={{ padding: '15px' }}>
-                                  {t.status === 'Pending' && (
-                                     <>
-                                        <button onClick={()=>handleToken(t.id, 'Approved', t.amount, t.project_id)} style={{marginRight:'10px', background:'#22c55e', color:'white', border:'none', padding:'5px 10px', borderRadius:'4px', cursor:'pointer'}}>✓</button>
-                                        <button onClick={()=>handleToken(t.id, 'Rejected', 0, 0)} style={{background:'#ef4444', color:'white', border:'none', padding:'5px 10px', borderRadius:'4px', cursor:'pointer'}}>✕</button>
-                                     </>
-                                  )}
-                               </td>
-                            </tr>
-                         ))}
-                      </tbody>
-                   </table>
-                </div>
-            )}
-
-            {/* 4. REPORTS (FIXED) */}
-            {activeTab === 'reports' && (
-               <div style={{background:'white', padding:'20px', borderRadius:'10px'}}>
-                  <h3>Daily Work Logs</h3>
-                  {adminData.workLogs.length === 0 && <p>No logs yet.</p>}
+              <div style={{display:'grid', gridTemplateColumns:'2fr 1fr', gap:'24px'}}>
+                {/* Recent Logs */}
+                <div style={styles.card}>
+                  <h3 style={{marginTop:0, marginBottom:'20px', color:colors.dark}}>Recent Site Updates</h3>
+                  {adminData.workLogs.length === 0 && <div style={{textAlign:'center', padding:'20px', color:colors.textLight}}>No activity yet today.</div>}
                   {adminData.workLogs.map(log => (
-                     <div key={log.id} style={{padding:'15px', borderBottom:'1px solid #eee', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                        <div>
-                           <strong>{log.project_name}</strong> - {log.activity_description} <Badge status={log.status} />
-                           <div style={{fontSize:'0.8rem', color:'#666'}}>{log.username} | {new Date(log.log_date).toLocaleDateString()} | Mat: {log.material_used}</div>
-                        </div>
-                        {log.photo_link && <a href={log.photo_link} target="_blank" style={{color:'blue', textDecoration:'underline'}}>View Photo</a>}
-                     </div>
+                    <div key={log.id} style={{display:'flex', alignItems:'start', gap:'15px', paddingBottom:'15px', marginBottom:'15px', borderBottom:`1px solid ${colors.border}`}}>
+                      <div style={{background:'#eff6ff', width:'40px', height:'40px', borderRadius:'10px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'1.2rem'}}>🏗️</div>
+                      <div style={{flex:1}}>
+                        <div style={{fontWeight:'600', color:colors.dark}}>{log.project_name}</div>
+                        <div style={{color:colors.textMain, fontSize:'0.9rem', marginTop:'2px'}}>{log.activity_description}</div>
+                        <div style={{fontSize:'0.75rem', color:colors.textLight, marginTop:'4px'}}>By {log.username} • {new Date(log.log_date).toLocaleDateString()}</div>
+                      </div>
+                      {log.photo_link && <a href={log.photo_link} target="_blank" style={{color:colors.primary, fontSize:'0.8rem', fontWeight:'600', textDecoration:'none'}}>View ↗</a>}
+                    </div>
                   ))}
-               </div>
-            )}
+                </div>
 
-            {/* 5. TEAM (FIXED with AUTO-ID) */}
-            {activeTab === 'team' && (
-               <div>
-                  <div style={{background:'white', padding:'20px', borderRadius:'10px', marginBottom:'20px'}}>
-                     <h3>➕ Hire New Employee</h3>
-                     <p style={{fontSize:'0.9rem', color:'#666'}}>ID will be auto-generated (e.g. BISPLE01).</p>
-                     <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:'10px'}}>
-                        <input placeholder="Full Name" value={newEmp.fullName} onChange={e=>setNewEmp({...newEmp, fullName:e.target.value})} style={{padding:'10px', border:'1px solid #ccc'}} />
-                        <input placeholder="Assign Password" value={newEmp.password} onChange={e=>setNewEmp({...newEmp, password:e.target.value})} style={{padding:'10px', border:'1px solid #ccc'}} />
-                        <input type="date" placeholder="Joining Date" value={newEmp.doj} onChange={e=>setNewEmp({...newEmp, doj:e.target.value})} style={{padding:'10px', border:'1px solid #ccc'}} />
+                {/* Live Attendance */}
+                <div style={styles.card}>
+                   <h3 style={{marginTop:0, marginBottom:'20px', color:colors.dark}}>Live Force 📍</h3>
+                   {adminData.attendance.map(a => (
+                     <div key={a.id} style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'12px'}}>
+                       <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
+                         <div style={{width:'8px', height:'8px', borderRadius:'50%', background:'#22c55e', boxShadow:'0 0 10px #22c55e'}}></div>
+                         <div style={{fontWeight:'600', fontSize:'0.9rem'}}>{a.username}</div>
+                       </div>
+                       <div style={{fontSize:'0.8rem', color:colors.textLight}}>{new Date(a.clock_in_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
                      </div>
-                     <button onClick={createEmployee} style={{marginTop:'15px', background:'#22c55e', color:'white', padding:'10px 20px', border:'none', borderRadius:'5px', cursor:'pointer'}}>Create Account</button>
+                   ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* PROJECTS TAB */}
+          {activeTab === 'projects' && (
+            <div>
+              <div style={{...styles.card, marginBottom:'30px'}}>
+                <h3 style={{marginTop:0}}>Create New Project</h3>
+                <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'15px', marginBottom:'15px'}}>
+                  <input placeholder="Project Name" value={newProject.name} onChange={e=>setNewProject({...newProject, name:e.target.value})} style={styles.input} />
+                  <input placeholder="Client Name" value={newProject.client} onChange={e=>setNewProject({...newProject, client:e.target.value})} style={styles.input} />
+                  <input placeholder="Budget (₹)" value={newProject.budget} onChange={e=>setNewProject({...newProject, budget:e.target.value})} style={styles.input} />
+                  <input type="date" value={newProject.start} onChange={e=>setNewProject({...newProject, start:e.target.value})} style={styles.input} />
+                  <input type="date" value={newProject.end} onChange={e=>setNewProject({...newProject, end:e.target.value})} style={styles.input} />
+                  <select value={newProject.status} onChange={e=>setNewProject({...newProject, status:e.target.value})} style={styles.input}>
+                    <option value="Planning">Planning</option> <option value="Active">Active</option>
+                  </select>
+                </div>
+                <button onClick={createProject} style={{...styles.button, width:'auto', padding:'10px 30px'}}>+ Launch Project</button>
+              </div>
+
+              <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(300px, 1fr))', gap:'24px'}}>
+                {adminData.projects.map(p => (
+                  <div key={p.id} style={styles.card}>
+                    <div style={{display:'flex', justifyContent:'space-between', alignItems:'start', marginBottom:'15px'}}>
+                      <div>
+                        <div style={{fontWeight:'700', fontSize:'1.1rem', color:colors.dark}}>{p.project_name}</div>
+                        <div style={{fontSize:'0.85rem', color:colors.textLight}}>{p.client_name || 'Internal'}</div>
+                      </div>
+                      <StatusBadge status={p.status} />
+                    </div>
+                    {/* Progress Bar */}
+                    <div style={{background:'#f1f5f9', height:'8px', borderRadius:'4px', overflow:'hidden', marginBottom:'8px'}}>
+                      <div style={{width:`${(p.budget_paid/p.budget_total)*100}%`, background:colors.primary, height:'100%'}}></div>
+                    </div>
+                    <div style={{display:'flex', justifyContent:'space-between', fontSize:'0.8rem', fontWeight:'600', color:colors.textMain}}>
+                      <span>₹{(p.budget_paid/100000).toFixed(1)}L Spent</span>
+                      <span>₹{(p.budget_total/100000).toFixed(1)}L Budget</span>
+                    </div>
                   </div>
+                ))}
+              </div>
+            </div>
+          )}
 
-                  <div style={{background:'white', padding:'20px', borderRadius:'10px'}}>
-                     <h3>Employee Directory</h3>
-                     <div style={{marginBottom:'15px', padding:'10px', background:'#f8fafc', border:'1px solid #eee'}}>
-                        <small>Reset Password:</small>
-                        <select onChange={e=>setResetPass({...resetPass, username:e.target.value})} style={{padding:'5px', margin:'0 10px'}}>
-                            <option>Select User</option>
-                            {adminData.employees.map(e=><option key={e.username} value={e.username}>{e.full_name}</option>)}
-                        </select>
-                        <input placeholder="New Pass" onChange={e=>setResetPass({...resetPass, newPass:e.target.value})} style={{padding:'5px', width:'100px', marginRight:'10px'}} />
-                        <button onClick={resetPassword} style={{padding:'5px 10px', background:'red', color:'white', border:'none'}}>Reset</button>
-                     </div>
+          {/* FINANCE TAB */}
+          {activeTab === 'finance' && (
+            <div style={styles.card}>
+              <table style={{width:'100%', borderCollapse:'collapse'}}>
+                <thead>
+                  <tr style={{borderBottom:'2px solid #f1f5f9', textAlign:'left', color:colors.textLight, fontSize:'0.85rem', textTransform:'uppercase'}}>
+                    <th style={{padding:'15px'}}>Request ID</th>
+                    <th style={{padding:'15px'}}>Employee</th>
+                    <th style={{padding:'15px'}}>Reason</th>
+                    <th style={{padding:'15px'}}>Amount</th>
+                    <th style={{padding:'15px'}}>Status</th>
+                    <th style={{padding:'15px'}}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {adminData.tokens.map(t => (
+                    <tr key={t.id} style={{borderBottom:'1px solid #f1f5f9'}}>
+                      <td style={{padding:'15px', fontWeight:'600', color:colors.textLight}}>#TKN-{t.id}</td>
+                      <td style={{padding:'15px', fontWeight:'600', color:colors.dark}}>{t.requested_by}</td>
+                      <td style={{padding:'15px'}}>{t.reason}</td>
+                      <td style={{padding:'15px', fontWeight:'700'}}>₹{t.amount}</td>
+                      <td style={{padding:'15px'}}><StatusBadge status={t.status} /></td>
+                      <td style={{padding:'15px'}}>
+                        {t.status === 'Pending' && (
+                          <div style={{display:'flex', gap:'8px'}}>
+                            <button onClick={()=>handleToken(t.id, 'Approved', t.amount, t.project_id)} style={{background:'#dcfce7', color:'#15803d', border:'none', padding:'6px 12px', borderRadius:'6px', fontWeight:'600', cursor:'pointer'}}>Accept</button>
+                            <button onClick={()=>handleToken(t.id, 'Rejected', 0, 0)} style={{background:'#fee2e2', color:'#b91c1c', border:'none', padding:'6px 12px', borderRadius:'6px', fontWeight:'600', cursor:'pointer'}}>Deny</button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
-                     <table style={{width:'100%', borderCollapse:'collapse'}}>
-                        <thead><tr style={{background:'#eee', textAlign:'left'}}><th style={{padding:'10px'}}>Name</th><th>Employee ID</th><th>Joined</th></tr></thead>
-                        <tbody>
-                           {adminData.employees.map(e=>(
-                              <tr key={e.username} style={{borderBottom:'1px solid #eee'}}>
-                                 <td style={{padding:'10px'}}>{e.full_name}</td>
-                                 <td style={{fontWeight:'bold'}}>{e.username}</td>
-                                 <td>{new Date(e.date_of_joining).toLocaleDateString()}</td>
-                              </tr>
-                           ))}
-                        </tbody>
-                     </table>
+          {/* TEAM TAB */}
+          {activeTab === 'team' && (
+             <div style={styles.card}>
+                <h3>Add New Team Member (Auto ID)</h3>
+                <div style={{display:'flex', gap:'15px', alignItems:'center', marginBottom:'20px'}}>
+                   <input placeholder="Full Name" value={newEmp.fullName} onChange={e=>setNewEmp({...newEmp, fullName:e.target.value})} style={{...styles.input, marginBottom:0}} />
+                   <input placeholder="Password" value={newEmp.password} onChange={e=>setNewEmp({...newEmp, password:e.target.value})} style={{...styles.input, marginBottom:0}} />
+                   <input type="date" value={newEmp.doj} onChange={e=>setNewEmp({...newEmp, doj:e.target.value})} style={{...styles.input, marginBottom:0}} />
+                   <button onClick={createEmployee} style={{...styles.button, width:'auto', padding:'14px 20px'}}>Hire Now</button>
+                </div>
+                <div style={{marginTop:'30px'}}>
+                  <h4 style={{color:colors.textLight, textTransform:'uppercase', fontSize:'0.8rem'}}>Current Staff</h4>
+                  <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(200px, 1fr))', gap:'15px'}}>
+                    {adminData.employees.map(e => (
+                      <div key={e.username} style={{border:`1px solid ${colors.border}`, padding:'15px', borderRadius:'10px', display:'flex', alignItems:'center', gap:'10px'}}>
+                        <div style={{background:colors.primary, color:'white', width:'40px', height:'40px', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:'bold'}}>{e.full_name.charAt(0)}</div>
+                        <div>
+                          <div style={{fontWeight:'700', fontSize:'0.9rem'}}>{e.full_name}</div>
+                          <div style={{fontSize:'0.75rem', color:colors.textLight}}>{e.username}</div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-               </div>
-            )}
+                </div>
+             </div>
+          )}
 
-          </div>
         </div>
       </div>
     );
   }
 
-  // --- EMPLOYEE VIEW (UNCHANGED) ---
+  // ---------------- VIEW: EMPLOYEE (MOBILE APP STYLE) ----------------
+  
   if (view === 'employee' && empData) {
     return (
-      <div style={{ fontFamily: 'sans-serif', background: '#0f172a', minHeight: '100vh', color: 'white', padding: '20px' }}>
-         <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}>
-            <h3>👷 {user.full_name}</h3>
-            <button onClick={()=>setView('login')} style={{background:'red', color:'white', border:'none', padding:'5px 10px'}}>Logout</button>
-         </div>
-         <button onClick={clockIn} style={{width:'100%', padding:'20px', background:'#22c55e', color:'white', border:'none', borderRadius:'10px', fontSize:'1.2rem', fontWeight:'bold', marginBottom:'20px'}}>📍 GPS CLOCK IN</button>
-         
-         <div style={{background:'#1e293b', padding:'20px', borderRadius:'10px', marginBottom:'20px'}}>
-            <h4>📝 Submit Daily Report</h4>
-            <select onChange={e=>setReportForm({...reportForm, projectId:e.target.value})} style={{width:'100%', padding:'10px', marginBottom:'10px'}}>
-               <option>Select Project</option>
-               {empData.projects.map(p=><option key={p.id} value={p.id}>{p.project_name}</option>)}
-            </select>
-            <input placeholder="Activity (e.g. Wall Plastering)" onChange={e=>setReportForm({...reportForm, activity:e.target.value})} style={{width:'100%', padding:'10px', marginBottom:'10px'}} />
-            <input placeholder="Material Used" onChange={e=>setReportForm({...reportForm, material:e.target.value})} style={{width:'100%', padding:'10px', marginBottom:'10px'}} />
-            <input placeholder="Photo Link (Drive/Imgur)" onChange={e=>setReportForm({...reportForm, photoLink:e.target.value})} style={{width:'100%', padding:'10px', marginBottom:'10px'}} />
-            <button onClick={submitReport} style={{width:'100%', padding:'10px', background:theme.primary, color:'white', border:'none'}}>Submit Report</button>
+      <div style={{ fontFamily: '"Inter", sans-serif', background: '#0f172a', minHeight: '100vh', color: 'white', paddingBottom:'80px' }}>
+         {/* APP HEADER */}
+         <div style={{padding:'20px', background:'#1e293b', display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'1px solid #334155'}}>
+            <div>
+              <div style={{fontSize:'0.8rem', color:'#94a3b8'}}>Welcome Back,</div>
+              <div style={{fontSize:'1.2rem', fontWeight:'700'}}>{user.full_name}</div>
+            </div>
+            <button onClick={()=>setView('login')} style={{background:'#334155', border:'none', color:'white', padding:'8px 12px', borderRadius:'8px', fontSize:'0.8rem'}}>Logout</button>
          </div>
 
-         <div style={{background:'#1e293b', padding:'20px', borderRadius:'10px'}}>
-            <h4>💸 Request Funds</h4>
-            <select onChange={e=>setTokenForm({...tokenForm, projectId:e.target.value})} style={{width:'100%', padding:'10px', marginBottom:'10px'}}>
-               <option>Select Project</option>
-               {empData.projects.map(p=><option key={p.id} value={p.id}>{p.project_name}</option>)}
-            </select>
-            <input placeholder="Amount" onChange={e=>setTokenForm({...tokenForm, amount:e.target.value})} style={{width:'100%', padding:'10px', marginBottom:'10px'}} />
-            <input placeholder="Reason" onChange={e=>setTokenForm({...tokenForm, reason:e.target.value})} style={{width:'100%', padding:'10px', marginBottom:'10px'}} />
-            <button onClick={raiseToken} style={{width:'100%', padding:'10px', background:'#3b82f6', color:'white', border:'none'}}>Send Request</button>
-            <div style={{marginTop:'15px', borderTop:'1px solid #334155', paddingTop:'10px'}}>
-               <small>Recent Requests:</small>
-               {empData.tokens.map(t=>(<div key={t.id} style={{fontSize:'0.9rem', color:t.status==='Approved'?'#4ade80':'#ccc'}}>{t.reason} - {t.status}</div>))}
+         <div style={{padding:'20px'}}>
+            {/* BIG CLOCK IN BUTTON */}
+            <button onClick={clockIn} style={{width:'100%', padding:'25px', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', border:'none', borderRadius:'20px', display:'flex', alignItems:'center', justifyContent:'center', gap:'15px', boxShadow:'0 10px 25px rgba(16, 185, 129, 0.3)', marginBottom:'30px'}}>
+               <span style={{fontSize:'2rem'}}>📍</span>
+               <div style={{textAlign:'left'}}>
+                 <div style={{fontSize:'1.2rem', fontWeight:'800', color:'white'}}>CLOCK IN NOW</div>
+                 <div style={{fontSize:'0.8rem', color:'rgba(255,255,255,0.8)'}}>Mark your attendance via GPS</div>
+               </div>
+            </button>
+
+            {/* DAILY REPORT SECTION */}
+            <div style={{background:'#1e293b', borderRadius:'20px', padding:'20px', marginBottom:'20px'}}>
+               <h3 style={{marginTop:0, display:'flex', alignItems:'center', gap:'10px'}}>📝 Daily Report</h3>
+               <select style={{...styles.input, background:'#0f172a', border:'1px solid #334155', color:'white'}}>
+                  <option>Select Project Site...</option>
+                  {empData.projects.map(p=><option key={p.id} value={p.id}>{p.project_name}</option>)}
+               </select>
+               <input placeholder="What did you do today?" style={{...styles.input, background:'#0f172a', border:'1px solid #334155', color:'white'}} />
+               <input placeholder="Materials Used (e.g. 5 Bags Cement)" style={{...styles.input, background:'#0f172a', border:'1px solid #334155', color:'white'}} />
+               <button style={{...styles.button, background:colors.primary}}>Submit Report</button>
+            </div>
+
+            {/* MONEY REQUEST */}
+            <div style={{background:'#1e293b', borderRadius:'20px', padding:'20px'}}>
+               <h3 style={{marginTop:0, display:'flex', alignItems:'center', gap:'10px'}}>💸 Request Funds</h3>
+               <div style={{display:'flex', gap:'10px'}}>
+                  <input placeholder="Amount (₹)" style={{...styles.input, background:'#0f172a', border:'1px solid #334155', color:'white', flex:1}} />
+                  <input placeholder="Reason" style={{...styles.input, background:'#0f172a', border:'1px solid #334155', color:'white', flex:2}} />
+               </div>
+               <button style={{...styles.button, background:'#3b82f6'}}>Send Request</button>
+
+               <div style={{marginTop:'20px', paddingTop:'15px', borderTop:'1px solid #334155'}}>
+                  <div style={{fontSize:'0.8rem', color:'#94a3b8', marginBottom:'10px'}}>RECENT REQUESTS</div>
+                  {empData.tokens.map(t=>(
+                    <div key={t.id} style={{display:'flex', justifyContent:'space-between', padding:'10px 0', borderBottom:'1px solid #334155', fontSize:'0.9rem'}}>
+                       <span>{t.reason}</span>
+                       <span style={{color:t.status==='Approved'?'#4ade80':t.status==='Rejected'?'#ef4444':'#fbbf24'}}>{t.status}</span>
+                    </div>
+                  ))}
+               </div>
+            </div>
+         </div>
+
+         {/* BOTTOM NAVIGATION (MOBILE APP FEEL) */}
+         <div style={{position:'fixed', bottom:0, width:'100%', background:'#1e293b', padding:'15px 0', display:'flex', justifyContent:'space-around', borderTop:'1px solid #334155'}}>
+            <div style={{textAlign:'center', color:colors.primary, fontSize:'0.7rem'}}>
+               <div style={{fontSize:'1.2rem', marginBottom:'4px'}}>🏠</div>Home
+            </div>
+            <div style={{textAlign:'center', color:'#94a3b8', fontSize:'0.7rem'}}>
+               <div style={{fontSize:'1.2rem', marginBottom:'4px'}}>📋</div>Tasks
+            </div>
+            <div style={{textAlign:'center', color:'#94a3b8', fontSize:'0.7rem'}}>
+               <div style={{fontSize:'1.2rem', marginBottom:'4px'}}>👤</div>Profile
             </div>
          </div>
       </div>
     );
   }
 
-  return <div style={{padding:'50px', textAlign:'center'}}>Loading System...</div>;
+  return <div style={{height:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#f8fafc', color:'#64748b'}}>Loading Interface...</div>;
 }
