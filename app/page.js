@@ -1,424 +1,486 @@
 'use client';
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import { 
+  Building2, 
+  Users, 
+  TrendingUp, 
+  Briefcase, 
+  PieChart, 
+  Activity,
+  Menu,
+  X,
+  MapPin,
+  ArrowUpRight,
+  DollarSign,
+  HardHat,
+  Phone,
+  LogOut,
+  ShieldCheck,
+  Globe
+} from 'lucide-react';
 
-export default function BitaERP() {
+// Firebase Imports (Uncomment and configure for real usage)
+// import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
+// import { initializeApp } from "firebase/app";
+
+const App = () => {
   // --- STATE MANAGEMENT ---
-  const [user, setUser] = useState(null);
-  const [view, setView] = useState('login'); 
+  const [user, setUser] = useState(null); // Auth state: null = logged out, object = logged in
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  
+  // Auth Form State
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [otp, setOtp] = useState('');
+  const [step, setStep] = useState('PHONE'); // 'PHONE' or 'OTP'
   const [loading, setLoading] = useState(false);
+
+  // --- MOCK DATA (Bita Infra) ---
+  const revenueStreams = [
+    { name: 'Civil Construction', value: 45, color: 'bg-blue-600' },
+    { name: 'Infrastructure Dev', value: 35, color: 'bg-sky-500' },
+    { name: 'Govt. Contracts', value: 15, color: 'bg-indigo-500' },
+    { name: 'Consultancy', value: 5, color: 'bg-teal-500' },
+  ];
+
+  const projects = [
+    { id: 1, name: 'Highway NH-42 Expansion', type: 'Infrastructure', status: 'In Progress', completion: 72 },
+    { id: 2, name: 'Bita Heights Residential', type: 'Residential', status: 'Planning', completion: 10 },
+    { id: 3, name: 'City Center Mall', type: 'Commercial', status: 'Finishing', completion: 95 },
+    { id: 4, name: 'State Power Grid Unit', type: 'Industrial', status: 'In Progress', completion: 45 },
+  ];
+
+  // --- AUTHENTICATION FUNCTIONS ---
   
-  // Data Storage
-  const [adminData, setAdminData] = useState(null);
-  const [empData, setEmpData] = useState(null);
-
-  // --- FORMS (ALL DEFINED HERE) ---
-  const [loginForm, setLoginForm] = useState({ username: '', password: '' });
-  
-  // Admin Forms
-  const [newProject, setNewProject] = useState({ name: '', client: '', budget: '', start: '', end: '', status: 'Planning' });
-  const [newEmp, setNewEmp] = useState({ fullName: '', password: '', doj: '' });
-  
-  // Employee Forms
-  const [reportForm, setReportForm] = useState({ projectId: '', activity: '', material: '', photoLink: '' });
-  const [tokenForm, setTokenForm] = useState({ amount: '', reason: '' });
-
-  // --- STYLING CONSTANTS ---
-  const colors = {
-    primary: '#f97316', 
-    dark: '#0f172a',
-    light: '#f1f5f9',
-    textMain: '#334155',
-    textLight: '#94a3b8',
-    border: '#e2e8f0'
-  };
-
-  const styles = {
-    card: {
-      background: 'white', borderRadius: '16px', padding: '24px',
-      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)', border: `1px solid ${colors.border}`
-    },
-    input: {
-      width: '100%', padding: '14px', borderRadius: '10px', border: `1px solid ${colors.border}`,
-      background: '#f8fafc', marginBottom: '15px', fontSize: '1rem'
-    },
-    button: {
-      width: '100%', padding: '14px', borderRadius: '10px', border: 'none',
-      background: colors.primary, color: 'white', fontWeight: '600', cursor: 'pointer',
-      fontSize: '1rem'
-    },
-    navItem: (active) => ({
-      padding: '12px 16px', margin: '4px 0', borderRadius: '8px', cursor: 'pointer',
-      display: 'flex', alignItems: 'center', gap: '12px',
-      background: active ? 'rgba(255,255,255,0.1)' : 'transparent',
-      color: active ? colors.primary : '#94a3b8', fontWeight: active ? '600' : '500'
-    })
-  };
-
-  // --- 1. AUTO-LOGIN ---
-  useEffect(() => {
-    const savedUser = localStorage.getItem('bita_user');
-    if (savedUser) {
-      const parsedUser = JSON.parse(savedUser);
-      setUser(parsedUser);
-      if (parsedUser.role === 'admin') {
-        setView('admin');
-        fetch('/api/admin', { method: 'POST', body: JSON.stringify({ action: 'get_dashboard' }) })
-          .then(r => r.json()).then(d => d.success && setAdminData(d));
-      } else {
-        setView('employee');
-        fetch('/api/employee', { method: 'POST', body: JSON.stringify({ action: 'get_data', username: parsedUser.username }) })
-          .then(r => r.json()).then(d => d.success && setEmpData(d));
-      }
+  const handleSendOtp = async (e) => {
+    e.preventDefault();
+    if (phoneNumber.length < 10) {
+      alert("Please enter a valid 10-digit mobile number");
+      return;
     }
-  }, []);
-
-  // --- API ACTIONS ---
-  async function handleLogin() {
     setLoading(true);
-    try {
-      const res = await fetch('/api/login', { method: 'POST', body: JSON.stringify(loginForm) });
-      const result = await res.json();
+    
+    // SIMULATION: In a real app, this connects to Firebase Auth
+    console.log(`Sending OTP to +91 ${phoneNumber}...`);
+    
+    setTimeout(() => {
       setLoading(false);
-      if (result.success) {
-        localStorage.setItem('bita_user', JSON.stringify(result.user));
-        setUser(result.user);
-        if (result.user.role === 'admin') { loadAdminData(); setView('admin'); }
-        else { loadEmployeeData(result.user.username); setView('employee'); }
-      } else { alert('❌ ' + result.message); }
-    } catch(e) { setLoading(false); alert('System Error'); }
-  }
-
-  function handleLogout() {
-    localStorage.removeItem('bita_user');
-    window.location.reload();
-  }
-
-  async function loadAdminData() {
-    const res = await fetch('/api/admin', { method: 'POST', body: JSON.stringify({ action: 'get_dashboard' }) });
-    const result = await res.json();
-    if(result.success) setAdminData(result);
-  }
-
-  async function loadEmployeeData(username) {
-    const res = await fetch('/api/employee', { method: 'POST', body: JSON.stringify({ action: 'get_data', username: username || user.username }) });
-    const result = await res.json();
-    if(result.success) setEmpData(result);
-  }
-
-  // --- WRAPPERS ---
-  async function createProject() { await fetch('/api/admin', { method:'POST', body:JSON.stringify({action:'create_project', ...newProject})}); loadAdminData(); setActiveTab('projects'); alert('Project Created'); }
-  async function createEmployee() { const res = await fetch('/api/admin', { method:'POST', body:JSON.stringify({action:'create_employee', ...newEmp})}); const data = await res.json(); if(data.success){ alert(`ID: ${data.newId}\nPass: ${newEmp.password}`); loadAdminData(); }}
-  async function handleToken(id, st, amt, pid) { await fetch('/api/admin', {method:'POST', body:JSON.stringify({action:'update_token', tokenId:id, status:st, amount:amt, projectId:pid})}); loadAdminData(); }
-  
-  // Employee Logic
-  async function clockIn() { navigator.geolocation.getCurrentPosition(async(p)=>{ await fetch('/api/employee', {method:'POST', body:JSON.stringify({action:'clock_in', username:user.username, lat:p.coords.latitude, lng:p.coords.longitude})}); alert('✅ Clocked In'); }); }
-  
-  async function submitReport() {
-    await fetch('/api/employee', { method: 'POST', body: JSON.stringify({ action: 'submit_report', username: user.username, ...reportForm }) });
-    alert('Report Submitted'); setReportForm({ projectId: '', activity: '', material: '', photoLink: '' });
-  }
-  
-  async function raiseToken() {
-    // Note: We need a projectId. For simplicity, picking the first active project or 0.
-    // In a real app, bind projectId to the form.
-    await fetch('/api/employee', { method: 'POST', body: JSON.stringify({ action: 'raise_token', username: user.username, projectId: 0, ...tokenForm }) });
-    alert('Request Sent'); setTokenForm({ amount: '', reason: '' }); loadEmployeeData();
-  }
-
-  // --- SUB-COMPONENTS ---
-  const StatusBadge = ({ status }) => {
-    let bg = '#f1f5f9', col = '#64748b', dot = '#94a3b8';
-    if(['Active', 'Approved', 'On Track'].includes(status)) { bg = '#dcfce7'; col = '#15803d'; dot = '#22c55e'; }
-    if(['Pending', 'Planning'].includes(status)) { bg = '#fef9c3'; col = '#a16207'; dot = '#eab308'; }
-    if(['Rejected', 'Issue'].includes(status)) { bg = '#fee2e2'; col = '#b91c1c'; dot = '#ef4444'; }
-    return (
-      <span style={{ background: bg, color: col, padding: '6px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '700', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: dot }}></span> {status.toUpperCase()}
-      </span>
-    );
+      setStep('OTP');
+      // For real app: window.confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
+    }, 1500);
   };
 
-  const StatBox = ({ label, val, sub, accent }) => (
-    <div style={{ ...styles.card, borderLeft: `4px solid ${accent || colors.primary}`, position:'relative', overflow:'hidden' }}>
-      <div style={{color: colors.textLight, fontSize: '0.85rem', fontWeight:'600', textTransform:'uppercase', letterSpacing:'0.5px'}}>{label}</div>
-      <div style={{fontSize: '2rem', fontWeight: '800', color: colors.dark, margin: '10px 0'}}>{val}</div>
-      <div style={{fontSize: '0.85rem', color: colors.textLight}}>{sub}</div>
-      <div style={{position:'absolute', right:'-20px', top:'-20px', width:'100px', height:'100px', borderRadius:'50%', background:accent||colors.primary, opacity:'0.1'}}></div>
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    
+    // SIMULATION: Verify OTP
+    setTimeout(() => {
+      setLoading(false);
+      if (otp === '123456') { // Mock OTP for demo
+        setUser({ name: 'Admin User', phone: phoneNumber, role: 'Admin' });
+      } else {
+        alert("Invalid OTP. (Try 123456)");
+      }
+    }, 1500);
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    setStep('PHONE');
+    setPhoneNumber('');
+    setOtp('');
+  };
+
+  // --- LOGIN SCREEN COMPONENT ---
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 font-sans relative overflow-hidden">
+        {/* Background Elements */}
+        <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
+           <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-blue-600 rounded-full blur-[100px]"></div>
+           <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-sky-500 rounded-full blur-[100px]"></div>
+        </div>
+
+        <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden z-10">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-slate-800 to-slate-900 p-8 text-center text-white">
+            <div className="bg-blue-600 w-16 h-16 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+              <Building2 size={32} className="text-white" />
+            </div>
+            <h1 className="text-2xl font-bold font-montserrat tracking-wide">BITA INFRA</h1>
+            <p className="text-blue-200 text-sm mt-1">Enterprise Management Portal</p>
+            <div className="flex items-center justify-center gap-1 mt-2 text-xs text-slate-400">
+               <Globe size={10} />
+               <span>bitainfra.com</span>
+            </div>
+          </div>
+
+          {/* Form */}
+          <div className="p-8">
+            {step === 'PHONE' ? (
+              <form onSubmit={handleSendOtp} className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-600">Mobile Number</label>
+                  <div className="flex border border-slate-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent transition-all">
+                    <div className="bg-slate-100 px-3 py-3 text-slate-500 font-medium border-r border-slate-300 flex items-center">
+                      🇮🇳 +91
+                    </div>
+                    <input 
+                      type="tel" 
+                      placeholder="98765 43210"
+                      className="w-full px-4 py-3 outline-none text-slate-800 font-medium placeholder:font-normal"
+                      value={phoneNumber}
+                      onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g,''))}
+                      maxLength={10}
+                      autoFocus
+                    />
+                  </div>
+                </div>
+                <button 
+                  type="submit" 
+                  disabled={loading}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-bold transition-all flex items-center justify-center space-x-2 shadow-lg shadow-blue-600/30"
+                >
+                  {loading ? (
+                    <span>Sending Code...</span>
+                  ) : (
+                    <>
+                      <span>Continue Securely</span>
+                      <ArrowUpRight size={18} />
+                    </>
+                  )}
+                </button>
+                <div id="recaptcha-container"></div>
+              </form>
+            ) : (
+              <form onSubmit={handleVerifyOtp} className="space-y-6 animate-fade-in">
+                <div className="text-center mb-4">
+                  <p className="text-slate-500 text-sm">Enter the code sent to</p>
+                  <p className="font-bold text-slate-800 text-lg">+91 {phoneNumber}</p>
+                  <button 
+                    type="button" 
+                    onClick={() => setStep('PHONE')} 
+                    className="text-xs text-blue-600 hover:underline mt-1"
+                  >
+                    Change Number
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-600">One-Time Password (OTP)</label>
+                  <input 
+                    type="text" 
+                    placeholder="123456"
+                    className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 focus-border-transparent text-center text-2xl tracking-widest font-mono text-slate-800"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g,''))}
+                    maxLength={6}
+                    autoFocus
+                  />
+                  <p className="text-xs text-slate-400 text-center">Use '123456' for demo login</p>
+                </div>
+
+                <button 
+                  type="submit" 
+                  disabled={loading}
+                  className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-bold transition-all flex items-center justify-center space-x-2 shadow-lg shadow-green-600/30"
+                >
+                  {loading ? <span>Verifying...</span> : <span>Verify & Login</span>}
+                </button>
+              </form>
+            )}
+
+            <div className="mt-8 text-center border-t border-slate-100 pt-4">
+              <p className="text-xs text-slate-400 flex items-center justify-center gap-1">
+                <ShieldCheck size={12} />
+                Secure connection to bitainfra.com server
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // --- DASHBOARD COMPONENTS ---
+  const renderDashboard = () => (
+    <div className="space-y-6 animate-fade-in">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {[
+          { label: 'Annual Revenue', value: '₹42.5 Cr', change: '+12%', icon: DollarSign, color: 'text-green-600' },
+          { label: 'Active Projects', value: '18', change: '+3', icon: HardHat, color: 'text-orange-600' },
+          { label: 'Total Workforce', value: '145', change: '+8%', icon: Users, color: 'text-blue-600' },
+          { label: 'Growth Rate', value: '15.2%', change: '+0.8%', icon: TrendingUp, color: 'text-purple-600' },
+        ].map((stat, idx) => (
+          <div key={idx} className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="text-slate-500 text-sm font-medium">{stat.label}</p>
+                <h3 className="text-2xl font-bold text-slate-800 mt-1">{stat.value}</h3>
+              </div>
+              <div className={`p-2 rounded-lg bg-slate-50 ${stat.color}`}>
+                <stat.icon size={20} />
+              </div>
+            </div>
+            <div className="mt-4 flex items-center text-sm">
+              <span className="text-green-500 flex items-center font-medium">
+                <ArrowUpRight size={16} className="mr-1" />
+                {stat.change}
+              </span>
+              <span className="text-slate-400 ml-2">vs last FY</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Revenue Diversification Chart */}
+        <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-lg font-bold text-slate-800">Revenue Distribution</h3>
+            <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">Detailed Report</button>
+          </div>
+          <div className="space-y-4">
+            {revenueStreams.map((stream, idx) => (
+              <div key={idx} className="group cursor-pointer">
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="font-medium text-slate-700 group-hover:text-blue-600 transition-colors">{stream.name}</span>
+                  <span className="text-slate-500">{stream.value}%</span>
+                </div>
+                <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                  <div 
+                    className={`h-full ${stream.color} rounded-full transition-all duration-1000 ease-out`}
+                    style={{ width: `${stream.value}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Quick Links */}
+        <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-6 rounded-xl shadow-lg text-white">
+          <h3 className="text-lg font-bold mb-4">Quick Actions</h3>
+          <div className="space-y-3">
+             <button className="w-full bg-white/10 hover:bg-white/20 p-3 rounded-lg flex items-center text-sm font-medium transition-colors">
+                <Briefcase size={16} className="mr-3 text-sky-400"/> New Project Proposal
+             </button>
+             <button className="w-full bg-white/10 hover:bg-white/20 p-3 rounded-lg flex items-center text-sm font-medium transition-colors">
+                <Users size={16} className="mr-3 text-green-400"/> Employee Directory
+             </button>
+             <button className="w-full bg-white/10 hover:bg-white/20 p-3 rounded-lg flex items-center text-sm font-medium transition-colors">
+                <Activity size={16} className="mr-3 text-purple-400"/> Site Reports
+             </button>
+          </div>
+          <div className="mt-8 pt-4 border-t border-white/10">
+             <p className="text-xs text-slate-400 mb-2">Connected Domain</p>
+             <div className="flex items-center text-sm font-medium">
+                <div className="w-2 h-2 rounded-full bg-green-500 mr-2"></div>
+                bitainfra.com
+             </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 
-  // ---------------- VIEW: LOGIN ----------------
-  if (view === 'login') {
-    return (
-      <div style={{ height: '100vh', background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'sans-serif' }}>
-        <div style={{ background: 'rgba(255, 255, 255, 0.95)', backdropFilter: 'blur(10px)', padding: '40px', borderRadius: '24px', width: '90%', maxWidth: '420px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
-          <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-            <div style={{fontSize: '1.5rem', fontWeight: '900', color: colors.dark, letterSpacing: '-1px'}}>BITA INFRA</div>
-            <div style={{color: colors.primary, fontSize: '0.9rem', fontWeight: '600', letterSpacing: '2px'}}>CONSTRUCTION OS</div>
+  const renderOrgChart = () => (
+    <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-100 overflow-x-auto min-h-[600px]">
+      <div className="flex flex-col items-center min-w-[800px]">
+        <h3 className="text-xl font-bold text-slate-800 mb-8">Bita Infra Structure</h3>
+        {/* CEO */}
+        <div className="flex flex-col items-center mb-8 relative">
+          <div className="w-64 p-4 bg-slate-800 text-white rounded-lg shadow-lg text-center z-10 border-b-4 border-blue-500">
+            <div className="font-bold text-lg">Managing Director</div>
+            <div className="text-slate-300 text-sm">Head of Operations</div>
           </div>
-          <input placeholder="Username" value={loginForm.username} onChange={e=>setLoginForm({...loginForm, username:e.target.value})} style={styles.input} />
-          <input type="password" placeholder="Password" value={loginForm.password} onChange={e=>setLoginForm({...loginForm, password:e.target.value})} style={styles.input} />
-          <button onClick={handleLogin} disabled={loading} style={styles.button}>{loading ? 'Authenticating...' : 'Sign In'}</button>
-          <div style={{textAlign:'center', marginTop:'20px', fontSize:'0.8rem', color:'#94a3b8'}}>Secure Enterprise Gateway</div>
+          <div className="h-8 w-px bg-slate-300"></div>
+        </div>
+        {/* Level 2 */}
+        <div className="flex justify-between w-full max-w-4xl px-10 relative">
+           <div className="absolute top-0 left-20 right-20 h-px bg-slate-300"></div>
+           <div className="absolute top-0 left-1/2 h-8 w-px bg-slate-300 -translate-x-1/2"></div>
+           
+           {/* Branch 1 */}
+           <div className="flex flex-col items-center relative -top-8">
+             <div className="h-8 w-px bg-slate-300"></div>
+             <div className="w-48 p-3 bg-white border border-slate-200 rounded-lg shadow-sm text-center">
+                <div className="font-bold text-slate-800">Project Head</div>
+                <div className="text-xs text-blue-600">Execution</div>
+             </div>
+           </div>
+           
+           {/* Branch 2 */}
+           <div className="flex flex-col items-center">
+             <div className="w-48 p-3 bg-white border border-slate-200 rounded-lg shadow-sm text-center">
+                <div className="font-bold text-slate-800">General Manager</div>
+                <div className="text-xs text-blue-600">Admin & HR</div>
+             </div>
+           </div>
+
+           {/* Branch 3 */}
+           <div className="flex flex-col items-center relative -top-8">
+             <div className="h-8 w-px bg-slate-300"></div>
+             <div className="w-48 p-3 bg-white border border-slate-200 rounded-lg shadow-sm text-center">
+                <div className="font-bold text-slate-800">Finance Head</div>
+                <div className="text-xs text-blue-600">Accounts</div>
+             </div>
+           </div>
         </div>
       </div>
-    );
-  }
+    </div>
+  );
 
-  // ---------------- VIEW: ADMIN ----------------
-  if (view === 'admin' && adminData) {
-    return (
-      <div style={{ display: 'flex', minHeight: '100vh', background: '#f8fafc', fontFamily: 'sans-serif' }}>
-        
-        {/* DESKTOP SIDEBAR */}
-        <div style={{ width: '260px', background: colors.dark, padding: '24px', display: 'flex', flexDirection: 'column', position: 'sticky', top: 0, height: '100vh', color: 'white', boxShadow: '4px 0 24px rgba(0,0,0,0.05)' }}>
-          <div style={{ marginBottom: '40px', paddingLeft: '10px' }}>
-            <div style={{fontSize: '1.25rem', fontWeight: '800'}}>BITA <span style={{color:colors.primary}}>ERP</span></div>
-            <div style={{fontSize: '0.75rem', opacity: 0.6}}>Admin Console v2.0</div>
-          </div>
-          <nav style={{flex: 1}}>
-            {['Dashboard', 'Projects', 'Finance', 'Team', 'Reports'].map(item => (
-              <div key={item} onClick={() => setActiveTab(item.toLowerCase())} style={styles.navItem(activeTab === item.toLowerCase())}>
-                <span>{item==='Dashboard'?'📊':item==='Projects'?'🏗️':item==='Finance'?'💸':item==='Team'?'👷':item==='Reports'?'📝':''}</span> 
-                {item}
-              </div>
-            ))}
-          </nav>
-          <div style={{borderTop: '1px solid #334155', paddingTop: '20px'}}>
-            <div style={{fontSize:'0.9rem', fontWeight:'600'}}>{user.full_name}</div>
-            <button onClick={handleLogout} style={{background:'none', border:'none', color:'#ef4444', fontSize:'0.8rem', cursor:'pointer', padding:0, marginTop:'5px'}}>Log Out</button>
-          </div>
-        </div>
-
-        {/* MAIN CONTENT AREA */}
-        <div style={{ flex: 1, padding: '40px', overflowY: 'auto' }}>
-          
-          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'30px'}}>
-            <h1 style={{fontSize:'1.75rem', fontWeight:'800', color:colors.dark, textTransform:'capitalize'}}>{activeTab}</h1>
-            <div style={{background:'white', padding:'8px 16px', borderRadius:'30px', boxShadow:'0 2px 10px rgba(0,0,0,0.05)', fontSize:'0.9rem', fontWeight:'600', color:colors.primary}}>
-              Today: {new Date().toLocaleDateString()}
-            </div>
-          </div>
-
-          {/* DASHBOARD TAB */}
-          {activeTab === 'dashboard' && (
-            <div style={{display:'grid', gap:'24px'}}>
-              <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(240px, 1fr))', gap:'24px'}}>
-                <StatBox label="Active Projects" val={adminData.stats.active_projects} sub="Currently ongoing" accent="#3b82f6" />
-                <StatBox label="Total Spent" val={`₹${(adminData.stats.total_spent/100000).toFixed(2)}L`} sub="Disbursed Funds" accent={colors.primary} />
-                <StatBox label="Workforce" val={adminData.employees.length} sub="Registered Staff" accent="#10b981" />
-              </div>
-
-              <div style={{display:'grid', gridTemplateColumns:'2fr 1fr', gap:'24px'}}>
-                <div style={styles.card}>
-                  <h3 style={{marginTop:0, marginBottom:'20px', color:colors.dark}}>Recent Site Updates</h3>
-                  {adminData.workLogs.length === 0 && <div style={{textAlign:'center', padding:'20px', color:colors.textLight}}>No activity yet today.</div>}
-                  {adminData.workLogs.map(log => (
-                    <div key={log.id} style={{display:'flex', alignItems:'start', gap:'15px', paddingBottom:'15px', marginBottom:'15px', borderBottom:`1px solid ${colors.border}`}}>
-                      <div style={{background:'#eff6ff', width:'40px', height:'40px', borderRadius:'10px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'1.2rem'}}>🏗️</div>
-                      <div style={{flex:1}}>
-                        <div style={{fontWeight:'600', color:colors.dark}}>{log.project_name}</div>
-                        <div style={{color:colors.textMain, fontSize:'0.9rem', marginTop:'2px'}}>{log.activity_description}</div>
-                        <div style={{fontSize:'0.75rem', color:colors.textLight, marginTop:'4px'}}>By {log.username} • {new Date(log.log_date).toLocaleDateString()}</div>
-                      </div>
-                      {log.photo_link && <a href={log.photo_link} target="_blank" style={{color:colors.primary, fontSize:'0.8rem', fontWeight:'600', textDecoration:'none'}}>View ↗</a>}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* PROJECTS TAB */}
-          {activeTab === 'projects' && (
+  const renderProjects = () => (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {projects.map((project) => (
+        <div key={project.id} className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 hover:shadow-md transition-all">
+          <div className="flex justify-between items-start mb-4">
             <div>
-              <div style={{...styles.card, marginBottom:'30px'}}>
-                <h3 style={{marginTop:0}}>Create New Project</h3>
-                <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'15px', marginBottom:'15px'}}>
-                  <input placeholder="Project Name" value={newProject.name} onChange={e=>setNewProject({...newProject, name:e.target.value})} style={styles.input} />
-                  <input placeholder="Client Name" value={newProject.client} onChange={e=>setNewProject({...newProject, client:e.target.value})} style={styles.input} />
-                  <input placeholder="Budget (₹)" value={newProject.budget} onChange={e=>setNewProject({...newProject, budget:e.target.value})} style={styles.input} />
-                  <input type="date" value={newProject.start} onChange={e=>setNewProject({...newProject, start:e.target.value})} style={styles.input} />
-                  <input type="date" value={newProject.end} onChange={e=>setNewProject({...newProject, end:e.target.value})} style={styles.input} />
-                  <select value={newProject.status} onChange={e=>setNewProject({...newProject, status:e.target.value})} style={styles.input}>
-                    <option value="Planning">Planning</option> <option value="Active">Active</option>
-                  </select>
-                </div>
-                <button onClick={createProject} style={{...styles.button, width:'auto', padding:'10px 30px'}}>+ Launch Project</button>
-              </div>
-              <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(300px, 1fr))', gap:'24px'}}>
-                {adminData.projects.map(p => (
-                  <div key={p.id} style={styles.card}>
-                    <div style={{display:'flex', justifyContent:'space-between', alignItems:'start', marginBottom:'15px'}}>
-                      <div>
-                        <div style={{fontWeight:'700', fontSize:'1.1rem', color:colors.dark}}>{p.project_name}</div>
-                        <div style={{fontSize:'0.85rem', color:colors.textLight}}>{p.client_name || 'Internal'}</div>
-                      </div>
-                      <StatusBadge status={p.status} />
-                    </div>
-                    <div style={{background:'#f1f5f9', height:'8px', borderRadius:'4px', overflow:'hidden', marginBottom:'8px'}}>
-                      <div style={{width:`${(p.budget_paid/p.budget_total)*100}%`, background:colors.primary, height:'100%'}}></div>
-                    </div>
-                    <div style={{display:'flex', justifyContent:'space-between', fontSize:'0.8rem', fontWeight:'600', color:colors.textMain}}>
-                      <span>₹{(p.budget_paid/100000).toFixed(1)}L Spent</span>
-                      <span>₹{(p.budget_total/100000).toFixed(1)}L Budget</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                project.type === 'Residential' ? 'bg-blue-100 text-blue-700' :
+                project.type === 'Commercial' ? 'bg-purple-100 text-purple-700' :
+                'bg-orange-100 text-orange-700'
+              }`}>
+                {project.type}
+              </span>
+              <h3 className="text-lg font-bold text-slate-800 mt-2">{project.name}</h3>
             </div>
-          )}
-
-          {/* FINANCE TAB */}
-          {activeTab === 'finance' && (
-            <div style={styles.card}>
-              <table style={{width:'100%', borderCollapse:'collapse'}}>
-                <thead>
-                  <tr style={{borderBottom:'2px solid #f1f5f9', textAlign:'left', color:colors.textLight, fontSize:'0.85rem', textTransform:'uppercase'}}>
-                    <th style={{padding:'15px'}}>Request ID</th>
-                    <th style={{padding:'15px'}}>Employee</th>
-                    <th style={{padding:'15px'}}>Reason</th>
-                    <th style={{padding:'15px'}}>Amount</th>
-                    <th style={{padding:'15px'}}>Status</th>
-                    <th style={{padding:'15px'}}>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {adminData.tokens.map(t => (
-                    <tr key={t.id} style={{borderBottom:'1px solid #f1f5f9'}}>
-                      <td style={{padding:'15px', fontWeight:'600', color:colors.textLight}}>#TKN-{t.id}</td>
-                      <td style={{padding:'15px', fontWeight:'600', color:colors.dark}}>{t.requested_by}</td>
-                      <td style={{padding:'15px'}}>{t.reason}</td>
-                      <td style={{padding:'15px', fontWeight:'700'}}>₹{t.amount}</td>
-                      <td style={{padding:'15px'}}><StatusBadge status={t.status} /></td>
-                      <td style={{padding:'15px'}}>
-                        {t.status === 'Pending' && (
-                          <div style={{display:'flex', gap:'8px'}}>
-                            <button onClick={()=>handleToken(t.id, 'Approved', t.amount, t.project_id)} style={{background:'#dcfce7', color:'#15803d', border:'none', padding:'6px 12px', borderRadius:'6px', fontWeight:'600', cursor:'pointer'}}>Accept</button>
-                            <button onClick={()=>handleToken(t.id, 'Rejected', 0, 0)} style={{background:'#fee2e2', color:'#b91c1c', border:'none', padding:'6px 12px', borderRadius:'6px', fontWeight:'600', cursor:'pointer'}}>Deny</button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="p-2 bg-slate-50 rounded-full">
+              <MapPin size={18} className="text-slate-400" />
             </div>
-          )}
-
-          {/* TEAM TAB */}
-          {activeTab === 'team' && (
-             <div style={styles.card}>
-                <h3>Add New Team Member (Auto ID)</h3>
-                <div style={{display:'flex', gap:'15px', alignItems:'center', marginBottom:'20px'}}>
-                   <input placeholder="Full Name" value={newEmp.fullName} onChange={e=>setNewEmp({...newEmp, fullName:e.target.value})} style={{...styles.input, marginBottom:0}} />
-                   <input placeholder="Password" value={newEmp.password} onChange={e=>setNewEmp({...newEmp, password:e.target.value})} style={{...styles.input, marginBottom:0}} />
-                   <input type="date" value={newEmp.doj} onChange={e=>setNewEmp({...newEmp, doj:e.target.value})} style={{...styles.input, marginBottom:0}} />
-                   <button onClick={createEmployee} style={{...styles.button, width:'auto', padding:'14px 20px'}}>Hire Now</button>
-                </div>
-                <div style={{marginTop:'30px'}}>
-                  <h4 style={{color:colors.textLight, textTransform:'uppercase', fontSize:'0.8rem'}}>Current Staff</h4>
-                  <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(200px, 1fr))', gap:'15px'}}>
-                    {adminData.employees.map(e => (
-                      <div key={e.username} style={{border:`1px solid ${colors.border}`, padding:'15px', borderRadius:'10px', display:'flex', alignItems:'center', gap:'10px'}}>
-                        <div style={{background:colors.primary, color:'white', width:'40px', height:'40px', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:'bold'}}>{e.full_name.charAt(0)}</div>
-                        <div>
-                          <div style={{fontWeight:'700', fontSize:'0.9rem'}}>{e.full_name}</div>
-                          <div style={{fontSize:'0.75rem', color:colors.textLight}}>{e.username}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-             </div>
-          )}
+          </div>
           
-          {/* REPORTS TAB (Reuse recent logs logic for simplicity) */}
-          {activeTab === 'reports' && (
-             <div style={styles.card}>
-                <h3>All Work Logs</h3>
-                {adminData.workLogs.map(log => (
-                  <div key={log.id} style={{padding:'10px', borderBottom:'1px solid #eee'}}>
-                    <b>{log.project_name}</b>: {log.activity_description} <br/>
-                    <small>{log.username} - {new Date(log.log_date).toLocaleDateString()}</small>
-                  </div>
-                ))}
-             </div>
-          )}
-
-        </div>
-      </div>
-    );
-  }
-
-  // ---------------- VIEW: EMPLOYEE ----------------
-  if (view === 'employee' && empData) {
-    return (
-      <div style={{ fontFamily: 'sans-serif', background: '#0f172a', minHeight: '100vh', color: 'white', paddingBottom:'80px' }}>
-         <div style={{padding:'20px', background:'#1e293b', display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'1px solid #334155'}}>
-            <div>
-              <div style={{fontSize:'0.8rem', color:'#94a3b8'}}>Welcome Back,</div>
-              <div style={{fontSize:'1.2rem', fontWeight:'700'}}>{user.full_name}</div>
+          <div className="mb-4">
+            <div className="flex justify-between text-sm mb-1">
+              <span className="text-slate-500">Completion</span>
+              <span className="font-bold text-slate-700">{project.completion}%</span>
             </div>
-            <button onClick={handleLogout} style={{background:'#334155', border:'none', color:'white', padding:'8px 12px', borderRadius:'8px', fontSize:'0.8rem'}}>Logout</button>
-         </div>
+            <div className="w-full bg-slate-100 rounded-full h-2">
+              <div 
+                className="bg-blue-600 h-2 rounded-full transition-all duration-500" 
+                style={{ width: `${project.completion}%` }}
+              ></div>
+            </div>
+          </div>
 
-         <div style={{padding:'20px'}}>
-            <button onClick={clockIn} style={{width:'100%', padding:'25px', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', border:'none', borderRadius:'20px', display:'flex', alignItems:'center', justifyContent:'center', gap:'15px', boxShadow:'0 10px 25px rgba(16, 185, 129, 0.3)', marginBottom:'30px'}}>
-               <span style={{fontSize:'2rem'}}>📍</span>
-               <div style={{textAlign:'left'}}>
-                 <div style={{fontSize:'1.2rem', fontWeight:'800', color:'white'}}>CLOCK IN NOW</div>
-                 <div style={{fontSize:'0.8rem', color:'rgba(255,255,255,0.8)'}}>Mark your attendance via GPS</div>
-               </div>
+          <div className="flex justify-between items-center pt-4 border-t border-slate-100">
+            <span className="text-sm text-slate-500 font-medium">Status: <span className="text-slate-800">{project.status}</span></span>
+            <button className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center">
+              View Site Data <ArrowUpRight size={14} className="ml-1" />
             </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 
-            <div style={{background:'#1e293b', borderRadius:'20px', padding:'20px', marginBottom:'20px'}}>
-               <h3 style={{marginTop:0, display:'flex', alignItems:'center', gap:'10px'}}>📝 Daily Report</h3>
-               <select onChange={e=>setReportForm({...reportForm, projectId:e.target.value})} style={{...styles.input, background:'#0f172a', border:'1px solid #334155', color:'white'}}>
-                  <option>Select Project Site...</option>
-                  {empData.projects.map(p=><option key={p.id} value={p.id}>{p.project_name}</option>)}
-               </select>
-               <input placeholder="What did you do today?" value={reportForm.activity} onChange={e=>setReportForm({...reportForm, activity:e.target.value})} style={{...styles.input, background:'#0f172a', border:'1px solid #334155', color:'white'}} />
-               <input placeholder="Materials Used" value={reportForm.material} onChange={e=>setReportForm({...reportForm, material:e.target.value})} style={{...styles.input, background:'#0f172a', border:'1px solid #334155', color:'white'}} />
-               <button onClick={submitReport} style={{...styles.button, background:colors.primary}}>Submit Report</button>
+  // --- MAIN APP LAYOUT ---
+  return (
+    <div className="flex h-screen bg-slate-50 font-sans text-slate-900">
+      {/* Sidebar */}
+      <aside className={`${isSidebarOpen ? 'w-64' : 'w-20'} bg-slate-900 text-white transition-all duration-300 flex flex-col shadow-xl z-20`}>
+        <div className="p-6 flex items-center justify-between">
+          {isSidebarOpen ? (
+            <div className="flex items-center space-x-2">
+              <div className="bg-blue-600 p-1.5 rounded-lg">
+                <Building2 size={24} />
+              </div>
+              <div>
+                <h1 className="font-bold text-lg leading-tight tracking-wide">BITA INFRA</h1>
+                <p className="text-[10px] text-slate-400 uppercase tracking-wider">Enterprise</p>
+              </div>
             </div>
+          ) : (
+             <div className="bg-blue-600 p-2 rounded-lg mx-auto">
+                <Building2 size={24} />
+              </div>
+          )}
+        </div>
 
-            <div style={{background:'#1e293b', borderRadius:'20px', padding:'20px'}}>
-               <h3 style={{marginTop:0, display:'flex', alignItems:'center', gap:'10px'}}>💸 Request Funds</h3>
-               <div style={{display:'flex', gap:'10px'}}>
-                  <input placeholder="Amount (₹)" value={tokenForm.amount} onChange={e=>setTokenForm({...tokenForm, amount:e.target.value})} style={{...styles.input, background:'#0f172a', border:'1px solid #334155', color:'white', flex:1}} />
-                  <input placeholder="Reason" value={tokenForm.reason} onChange={e=>setTokenForm({...tokenForm, reason:e.target.value})} style={{...styles.input, background:'#0f172a', border:'1px solid #334155', color:'white', flex:2}} />
-               </div>
-               <button onClick={raiseToken} style={{...styles.button, background:'#3b82f6'}}>Send Request</button>
+        <nav className="flex-1 px-4 space-y-2 mt-4">
+          {[
+            { id: 'dashboard', label: 'Overview', icon: PieChart },
+            { id: 'projects', label: 'Projects', icon: Briefcase },
+            { id: 'org', label: 'Organization', icon: Users },
+            { id: 'analytics', label: 'Reports', icon: Activity },
+          ].map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setActiveTab(item.id)}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+                activeTab === item.id 
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50' 
+                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+              }`}
+            >
+              <item.icon size={20} />
+              {isSidebarOpen && <span className="font-medium">{item.label}</span>}
+            </button>
+          ))}
+        </nav>
+        
+        <div className="p-4 border-t border-slate-800">
+           <button 
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className="w-full flex items-center justify-center p-2 rounded-lg hover:bg-slate-800 text-slate-400 transition-colors mb-2"
+           >
+             {isSidebarOpen ? <Menu size={20} /> : <Menu size={20} />}
+           </button>
+           <button 
+            onClick={handleLogout}
+            className={`w-full flex items-center ${isSidebarOpen ? 'justify-start px-4' : 'justify-center'} p-2 rounded-lg hover:bg-red-500/10 hover:text-red-400 text-slate-400 transition-colors`}
+           >
+             <LogOut size={20} />
+             {isSidebarOpen && <span className="ml-3 font-medium">Sign Out</span>}
+           </button>
+        </div>
+      </aside>
 
-               <div style={{marginTop:'20px', paddingTop:'15px', borderTop:'1px solid #334155'}}>
-                  <div style={{fontSize:'0.8rem', color:'#94a3b8', marginBottom:'10px'}}>RECENT REQUESTS</div>
-                  {empData.tokens.map(t=>(
-                    <div key={t.id} style={{display:'flex', justifyContent:'space-between', padding:'10px 0', borderBottom:'1px solid #334155', fontSize:'0.9rem'}}>
-                       <span>{t.reason}</span>
-                       <span style={{color:t.status==='Approved'?'#4ade80':t.status==='Rejected'?'#ef4444':'#fbbf24'}}>{t.status}</span>
-                    </div>
-                  ))}
-               </div>
+      {/* Main Content */}
+      <main className="flex-1 overflow-y-auto relative">
+        {/* Top Header */}
+        <header className="bg-white border-b border-slate-200 sticky top-0 z-10 px-8 py-4 flex justify-between items-center shadow-sm">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-800">
+              {activeTab === 'dashboard' ? 'Executive Overview' : 
+               activeTab === 'org' ? 'Corporate Structure' : 
+               activeTab === 'projects' ? 'Project Portfolio' : 'Analytics Center'}
+            </h2>
+            <p className="text-sm text-slate-500 mt-1 flex items-center">
+               <span className="w-2 h-2 rounded-full bg-green-500 mr-2"></span>
+               Logged in as: <span className="font-semibold ml-1 text-slate-700">{user.name}</span> ({user.role})
+            </p>
+          </div>
+          <div className="flex items-center space-x-4">
+            <div className="text-right hidden md:block">
+               <p className="text-xs text-slate-400">Current Date</p>
+               <p className="text-sm font-semibold text-slate-700">{new Date().toLocaleDateString()}</p>
             </div>
-         </div>
+            <div className="h-10 w-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold shadow-md">
+              {user.name.charAt(0)}
+            </div>
+          </div>
+        </header>
 
-         {/* BOTTOM NAV */}
-         <div style={{position:'fixed', bottom:0, width:'100%', background:'#1e293b', padding:'15px 0', display:'flex', justifyContent:'space-around', borderTop:'1px solid #334155'}}>
-            <div style={{textAlign:'center', color:colors.primary, fontSize:'0.7rem'}}>
-               <div style={{fontSize:'1.2rem', marginBottom:'4px'}}>🏠</div>Home
+        {/* Dynamic Content */}
+        <div className="p-8">
+          {activeTab === 'dashboard' && renderDashboard()}
+          {activeTab === 'org' && renderOrgChart()}
+          {activeTab === 'projects' && renderProjects()}
+          {activeTab === 'analytics' && (
+            <div className="flex flex-col items-center justify-center h-96 text-slate-400 bg-white rounded-xl border border-dashed border-slate-300">
+              <Activity size={48} className="mb-4 opacity-50 text-blue-400" />
+              <p className="text-lg font-medium text-slate-600">Analytics Module</p>
+              <p className="text-sm">Connect your Google Analytics or ERP Data Source</p>
             </div>
-            <div style={{textAlign:'center', color:'#94a3b8', fontSize:'0.7rem'}}>
-               <div style={{fontSize:'1.2rem', marginBottom:'4px'}}>📋</div>Tasks
-            </div>
-            <div style={{textAlign:'center', color:'#94a3b8', fontSize:'0.7rem'}}>
-               <div style={{fontSize:'1.2rem', marginBottom:'4px'}}>👤</div>Profile
-            </div>
-         </div>
-      </div>
-    );
-  }
+          )}
+        </div>
+      </main>
+    </div>
+  );
+};
 
-  return <div style={{height:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#f8fafc', color:'#64748b'}}>Loading Interface...</div>;
-}
+export default App;
