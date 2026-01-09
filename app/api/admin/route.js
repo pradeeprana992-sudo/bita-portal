@@ -12,74 +12,56 @@ export async function POST(request) {
     const body = await request.json();
     const { action } = body;
 
-    // --- 1. GET FULL DASHBOARD (REAL DATA) ---
+    // --- 1. GET DASHBOARD DATA ---
     if (action === 'get_dashboard') {
-      // Get Projects
-      const projectsRes = await pool.query('SELECT * FROM projects ORDER BY id DESC');
-      const projects = projectsRes.rows;
-
-      // Get Stages for each project
-      for (let p of projects) {
-        const stagesRes = await pool.query('SELECT * FROM project_stages WHERE project_id = $1 ORDER BY id ASC', [p.id]);
-        p.stages = stagesRes.rows;
-      }
-
-      // Get Staff
-      const staffRes = await pool.query("SELECT id, username, full_name, role, phone, email, current_site, status, date_of_joining FROM users WHERE role != 'admin' ORDER BY id DESC");
+      const projects = await pool.query('SELECT * FROM projects ORDER BY id DESC');
+      const staff = await pool.query("SELECT * FROM users WHERE role != 'admin' ORDER BY id DESC");
+      // Get Pending Finance Requests
+      const requests = await pool.query("SELECT f.*, p.project_name FROM fund_requests f JOIN projects p ON f.project_id = p.id ORDER BY f.id DESC");
       
-      // Calculate Stats
       const stats = {
-        revenue: projects.reduce((sum, p) => sum + Number(p.revenue_recognized || 0), 0),
-        active_count: projects.filter(p => p.status === 'Active').length,
-        staff_count: staffRes.rows.length,
-        growth: '15.2%' // You can calculate this dynamically later
+        revenue: projects.rows.reduce((sum, p) => sum + Number(p.budget_total || 0), 0), // Simulating revenue as total budget for now
+        active: projects.rows.filter(p => p.status === 'Active').length,
+        staff: staff.rows.length
       };
 
-      return NextResponse.json({ success: true, projects, staff: staffRes.rows, stats });
+      return NextResponse.json({ success: true, projects: projects.rows, staff: staff.rows, requests: requests.rows, stats });
     }
 
-    // --- 2. CREATE PROJECT ---
-    if (action === 'create_project') {
-      const { name, client, value, start, end, status } = body;
-      const res = await pool.query(
-        'INSERT INTO projects (project_name, client_name, budget_total, start_date, end_date, status, completion_percent) VALUES ($1, $2, $3, $4, $5, $6, 0) RETURNING id',
-        [name, client, value, start, end, status || 'Planning']
-      );
-      
-      // Add Default Stages
-      const pid = res.rows[0].id;
-      const defaultStages = [
-        { n: 'Site Clearance', s: 'Pending' },
-        { n: 'Foundation', s: 'Pending' },
-        { n: 'Structure', s: 'Pending' },
-        { n: 'Finishing', s: 'Pending' }
-      ];
-      for (let s of defaultStages) {
-        await pool.query('INSERT INTO project_stages (project_id, stage_name, status, stage_date) VALUES ($1, $2, $3, $4)', [pid, s.n, s.s, 'TBD']);
-      }
-
-      return NextResponse.json({ success: true });
-    }
-
-    // --- 3. CREATE EMPLOYEE ---
+    // --- 2. HIRE EMPLOYEE ---
     if (action === 'create_employee') {
-      const { fullName, phone, email, role, password, site } = body;
-      
-      // Auto-Generate ID (BIS001...)
-      const countRes = await pool.query("SELECT COUNT(*) FROM users");
-      const nextId = parseInt(countRes.rows[0].count) + 1;
+      const { fullName, phone, role, password } = body;
+      // Auto-ID: BIS001, BIS002...
+      const count = await pool.query('SELECT COUNT(*) FROM users');
+      const nextId = parseInt(count.rows[0].count) + 1;
       const username = `BIS${nextId.toString().padStart(3, '0')}`;
-      
       const hashed = await bcrypt.hash(password, 10);
-      
+
       await pool.query(
-        'INSERT INTO users (username, password, full_name, role, phone, email, current_site, status, date_of_joining) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_DATE)', 
-        [username, hashed, fullName, role, phone, email, site, 'Active']
+        'INSERT INTO users (username, password, full_name, role, phone, status, date_of_joining) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_DATE)',
+        [username, hashed, fullName, role, phone, 'Active']
       );
       return NextResponse.json({ success: true, newId: username });
     }
 
-    return NextResponse.json({ success: false, message: 'Invalid Action' });
+    // --- 3. CREATE PROJECT ---
+    if (action === 'create_project') {
+      const { name, client, value, start } = body;
+      await pool.query(
+        'INSERT INTO projects (project_name, client_name, budget_total, start_date, status, completion_percent) VALUES ($1, $2, $3, $4, $5, 0)',
+        [name, client, value, start, 'Planning']
+      );
+      return NextResponse.json({ success: true });
+    }
+
+    // --- 4. APPROVE FUNDS ---
+    if (action === 'handle_request') {
+      const { id, status } = body; // status = 'Approved' or 'Rejected'
+      await pool.query('UPDATE fund_requests SET status = $1 WHERE id = $2', [status, id]);
+      return NextResponse.json({ success: true });
+    }
+
+    return NextResponse.json({ success: false });
 
   } catch (error) {
     return NextResponse.json({ success: false, message: error.message });
