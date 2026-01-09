@@ -9,49 +9,39 @@ const pool = new Pool({
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { action, username } = body;
+    const { action } = body;
 
-    // --- 1. GET DATA ---
+    // --- 1. GET MY DATA ---
     if (action === 'get_data') {
-      const tasks = await pool.query("SELECT * FROM tasks WHERE assigned_to = $1 AND status IN ('Pending', 'In Progress')", [username]);
-      const myTokens = await pool.query('SELECT * FROM tokens WHERE requested_by = $1 ORDER BY id DESC LIMIT 5', [username]);
-      const projects = await pool.query('SELECT * FROM projects WHERE status = $1', ['Active']);
-      
-      return NextResponse.json({ success: true, tasks: tasks.rows, tokens: myTokens.rows, projects: projects.rows });
+      // Get Active Projects for Dropdown
+      const projects = await pool.query("SELECT id, project_name FROM projects WHERE status = 'Active'");
+      return NextResponse.json({ success: true, projects: projects.rows });
     }
 
-    // --- 2. SUBMIT DAILY REPORT (New) ---
-    if (action === 'submit_report') {
-      const { projectId, activity, material, photoLink } = body;
-      await pool.query(
-        'INSERT INTO work_logs (project_id, username, activity_description, material_used, photo_link, status) VALUES ($1, $2, $3, $4, $5, $6)',
-        [projectId, username, activity, material, photoLink, 'On Track']
-      );
-      return NextResponse.json({ success: true });
-    }
-
-    // --- 3. CLOCK IN ---
+    // --- 2. GPS CLOCK IN ---
     if (action === 'clock_in') {
-      const { lat, lng } = body;
-      await pool.query('INSERT INTO attendance (username, latitude, longitude, location_name) VALUES ($1, $2, $3, $4)', [username, lat, lng, 'GPS Lock']);
+      const { username, lat, lng } = body;
+      await pool.query('INSERT INTO attendance (username, latitude, longitude) VALUES ($1, $2, $3)', [username, lat, lng]);
       return NextResponse.json({ success: true });
     }
 
-    // --- 4. RAISE TOKEN ---
-    if (action === 'raise_token') {
-      const { projectId, amount, reason } = body;
-      await pool.query('INSERT INTO tokens (requested_by, project_id, amount, reason) VALUES ($1, $2, $3, $4)', [username, projectId, amount, reason]);
+    // --- 3. SUBMIT REPORT ---
+    if (action === 'submit_report') {
+      const { username, projectId, activity, material } = body;
+      await pool.query('INSERT INTO work_logs (username, project_id, activity, material_used) VALUES ($1, $2, $3, $4)', [username, projectId, activity, material]);
+      // Auto-update project progress (Simple logic: +1% per report)
+      await pool.query('UPDATE projects SET completion_percent = completion_percent + 1 WHERE id = $1', [projectId]);
       return NextResponse.json({ success: true });
     }
 
-    // --- 5. COMPLETE TASK ---
-    if (action === 'complete_task') {
-      const { taskId } = body;
-      await pool.query('UPDATE tasks SET status = $1 WHERE id = $2', ['Submitted', taskId]);
+    // --- 4. REQUEST FUNDS ---
+    if (action === 'request_funds') {
+      const { username, projectId, amount, reason } = body;
+      await pool.query('INSERT INTO fund_requests (username, project_id, amount, reason) VALUES ($1, $2, $3, $4)', [username, projectId, amount, reason]);
       return NextResponse.json({ success: true });
     }
 
-    return NextResponse.json({ success: false, message: 'Invalid Action' });
+    return NextResponse.json({ success: false });
 
   } catch (error) {
     return NextResponse.json({ success: false, message: error.message });
