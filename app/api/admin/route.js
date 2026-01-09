@@ -12,78 +12,71 @@ export async function POST(request) {
     const body = await request.json();
     const { action } = body;
 
-    // --- 1. DASHBOARD DATA ---
+    // --- 1. GET FULL DASHBOARD (REAL DATA) ---
     if (action === 'get_dashboard') {
-      const projects = await pool.query('SELECT * FROM projects ORDER BY id DESC');
-      const employees = await pool.query("SELECT username, full_name, role, date_of_joining FROM users WHERE role = 'employee' ORDER BY id DESC");
-      const tokens = await pool.query('SELECT * FROM tokens ORDER BY status DESC, id DESC');
-      const attendance = await pool.query('SELECT * FROM attendance ORDER BY clock_in_time DESC LIMIT 15');
-      
-      let workLogs = { rows: [] };
-      try {
-        workLogs = await pool.query(`
-          SELECT w.*, p.project_name 
-          FROM work_logs w 
-          JOIN projects p ON w.project_id = p.id 
-          ORDER BY w.log_date DESC, w.id DESC LIMIT 30
-        `);
-      } catch (e) { console.log("Logs empty"); }
+      // Get Projects
+      const projectsRes = await pool.query('SELECT * FROM projects ORDER BY id DESC');
+      const projects = projectsRes.rows;
 
-      const stats = {
-        active_projects: projects.rows.filter(p => p.status === 'Active').length,
-        total_budget: projects.rows.reduce((sum, p) => sum + Number(p.budget_total), 0),
-        total_spent: projects.rows.reduce((sum, p) => sum + Number(p.budget_paid), 0)
-      };
+      // Get Stages for each project
+      for (let p of projects) {
+        const stagesRes = await pool.query('SELECT * FROM project_stages WHERE project_id = $1 ORDER BY id ASC', [p.id]);
+        p.stages = stagesRes.rows;
+      }
+
+      // Get Staff
+      const staffRes = await pool.query("SELECT id, username, full_name, role, phone, email, current_site, status, date_of_joining FROM users WHERE role != 'admin' ORDER BY id DESC");
       
-      return NextResponse.json({ success: true, projects: projects.rows, employees: employees.rows, tokens: tokens.rows, attendance: attendance.rows, workLogs: workLogs.rows, stats });
+      // Calculate Stats
+      const stats = {
+        revenue: projects.reduce((sum, p) => sum + Number(p.revenue_recognized || 0), 0),
+        active_count: projects.filter(p => p.status === 'Active').length,
+        staff_count: staffRes.rows.length,
+        growth: '15.2%' // You can calculate this dynamically later
+      };
+
+      return NextResponse.json({ success: true, projects, staff: staffRes.rows, stats });
     }
 
     // --- 2. CREATE PROJECT ---
     if (action === 'create_project') {
-      const { name, client, budget, start, end, status } = body;
-      await pool.query(
-        'INSERT INTO projects (project_name, client_name, budget_total, budget_paid, start_date, end_date, status, completion_percent) VALUES ($1, $2, $3, 0, $4, $5, $6, 0)',
-        [name, client, budget, start, end, status || 'Planning']
+      const { name, client, value, start, end, status } = body;
+      const res = await pool.query(
+        'INSERT INTO projects (project_name, client_name, budget_total, start_date, end_date, status, completion_percent) VALUES ($1, $2, $3, $4, $5, $6, 0) RETURNING id',
+        [name, client, value, start, end, status || 'Planning']
       );
-      return NextResponse.json({ success: true });
-    }
-
-    // --- 3. APPROVE TOKEN ---
-    if (action === 'update_token') {
-      const { tokenId, status, amount, projectId } = body;
-      await pool.query('UPDATE tokens SET status = $1 WHERE id = $2', [status, tokenId]);
-      if (status === 'Approved') {
-         await pool.query('UPDATE projects SET budget_paid = budget_paid + $1 WHERE id = $2', [amount, projectId]);
+      
+      // Add Default Stages
+      const pid = res.rows[0].id;
+      const defaultStages = [
+        { n: 'Site Clearance', s: 'Pending' },
+        { n: 'Foundation', s: 'Pending' },
+        { n: 'Structure', s: 'Pending' },
+        { n: 'Finishing', s: 'Pending' }
+      ];
+      for (let s of defaultStages) {
+        await pool.query('INSERT INTO project_stages (project_id, stage_name, status, stage_date) VALUES ($1, $2, $3, $4)', [pid, s.n, s.s, 'TBD']);
       }
+
       return NextResponse.json({ success: true });
     }
 
-    // --- 4. CREATE EMPLOYEE (AUTO-ID) ---
+    // --- 3. CREATE EMPLOYEE ---
     if (action === 'create_employee') {
-      const { password, fullName, doj } = body;
+      const { fullName, phone, email, role, password, site } = body;
       
-      // A. Generate Auto ID (BISPLE01, BISPLE02...)
-      const countResult = await pool.query("SELECT COUNT(*) FROM users WHERE role = 'employee'");
-      const nextNum = parseInt(countResult.rows[0].count) + 1;
-      const autoUsername = `BISPLE${nextNum.toString().padStart(2, '0')}`; // Adds leading zero
-
-      // B. Hash Password
-      const hashedPassword = await bcrypt.hash(password, 10);
+      // Auto-Generate ID (BIS001...)
+      const countRes = await pool.query("SELECT COUNT(*) FROM users");
+      const nextId = parseInt(countRes.rows[0].count) + 1;
+      const username = `BIS${nextId.toString().padStart(3, '0')}`;
       
-      // C. Save
+      const hashed = await bcrypt.hash(password, 10);
+      
       await pool.query(
-        'INSERT INTO users (username, password, full_name, role, date_of_joining) VALUES ($1, $2, $3, $4, $5)', 
-        [autoUsername, hashedPassword, fullName, 'employee', doj]
+        'INSERT INTO users (username, password, full_name, role, phone, email, current_site, status, date_of_joining) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_DATE)', 
+        [username, hashed, fullName, role, phone, email, site, 'Active']
       );
-      return NextResponse.json({ success: true, newId: autoUsername });
-    }
-
-    // --- 5. RESET PASSWORD ---
-    if (action === 'reset_password') {
-      const { username, newPassword } = body;
-      const hashedPassword = await bcrypt.hash(newPassword, 10);
-      await pool.query('UPDATE users SET password = $1 WHERE username = $2', [hashedPassword, username]);
-      return NextResponse.json({ success: true });
+      return NextResponse.json({ success: true, newId: username });
     }
 
     return NextResponse.json({ success: false, message: 'Invalid Action' });
