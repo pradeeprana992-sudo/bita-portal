@@ -1,16 +1,16 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
-  Building2, Users, TrendingUp, Briefcase, PieChart, Activity,
-  Menu, X, MapPin, ArrowUpRight, DollarSign, HardHat, LogOut, Globe, ShieldCheck,
-  ChevronLeft, Phone, Mail, Calendar, UserPlus, FolderPlus, FileText
+  Building2, Users, PieChart, Briefcase, Activity,
+  Menu, MapPin, ArrowUpRight, LogOut,
+  ChevronLeft, Phone, Mail, UserPlus, FolderPlus, FileText
 } from 'lucide-react';
 
 export default function App() {
   // --- STATE ---
   const [user, setUser] = useState(null); 
   const [currentView, setCurrentView] = useState('dashboard'); // Controls which "Page" is open
-  const [selectedItem, setSelectedItem] = useState(null); // Stores data for detail pages (e.g. which employee)
+  const [selectedItem, setSelectedItem] = useState(null); // Stores data for detail pages
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   
   // Auth State
@@ -19,7 +19,7 @@ export default function App() {
   const [step, setStep] = useState('PHONE');
   const [loading, setLoading] = useState(false);
 
-  // --- MOCK DATA (Extended) ---
+  // --- MOCK DATA (Now with Stages!) ---
   const staffList = [
     { id: 'BIS001', name: 'Rahul Sharma', role: 'Project Manager', phone: '9876500001', email: 'rahul@bita.com', joined: '2022-03-15', site: 'Highway NH-42', status: 'Active' },
     { id: 'BIS002', name: 'Kruti Engineer', role: 'Site Engineer', phone: '9876500002', email: 'kruti@bita.com', joined: '2023-06-10', site: 'City Center Mall', status: 'On Site' },
@@ -28,10 +28,68 @@ export default function App() {
   ];
 
   const projectsList = [
-    { id: 1, name: 'Highway NH-42', client: 'NHAI', value: '15 Cr', status: 'Active', progress: 72, revenue: '8.5 Cr', start: '2023-01', end: '2025-06' },
-    { id: 2, name: 'Bita Heights', client: 'Internal', value: '12 Cr', status: 'Planning', progress: 10, revenue: '0 Cr', start: '2024-02', end: '2026-12' },
-    { id: 3, name: 'City Center Mall', client: 'City Corp', value: '25 Cr', status: 'Active', progress: 95, revenue: '22 Cr', start: '2022-05', end: '2024-04' },
-    { id: 4, name: 'Govt School Block', client: 'Odisha Govt', value: '2 Cr', status: 'Completed', progress: 100, revenue: '2 Cr', start: '2023-01', end: '2023-12' },
+    { 
+      id: 1, 
+      name: 'Highway NH-42', 
+      client: 'NHAI', 
+      value: '15 Cr', 
+      status: 'Active', 
+      progress: 72, 
+      revenue: '8.5 Cr', 
+      start: '2023-01', 
+      end: '2025-06',
+      // NEW: Construction Stages Data
+      stages: [
+        { name: 'Land Acquisition', status: 'Completed', date: 'Jan 2023' },
+        { name: 'Soil Testing & Levelling', status: 'Completed', date: 'Mar 2023' },
+        { name: 'Foundation / Bedding', status: 'Completed', date: 'Aug 2023' },
+        { name: 'Paving / Layering', status: 'In Progress', date: 'Current' },
+        { name: 'Signage & Finishing', status: 'Pending', date: 'Est. June 2025' }
+      ]
+    },
+    { 
+      id: 2, 
+      name: 'Bita Heights', 
+      client: 'Internal', 
+      value: '12 Cr', 
+      status: 'Planning', 
+      progress: 10, 
+      revenue: '0 Cr', 
+      start: '2024-02', 
+      end: '2026-12',
+      stages: [
+         { name: 'Architectural Design', status: 'Completed', date: 'Feb 2024' },
+         { name: 'Govt Approvals', status: 'In Progress', date: 'Current' },
+         { name: 'Excavation', status: 'Pending', date: 'May 2024' }
+      ]
+    },
+    { 
+      id: 3, 
+      name: 'City Center Mall', 
+      client: 'City Corp', 
+      value: '25 Cr', 
+      status: 'Active', 
+      progress: 95, 
+      revenue: '22 Cr', 
+      start: '2022-05', 
+      end: '2024-04',
+      stages: [
+         { name: 'Structure Work', status: 'Completed', date: '2023' },
+         { name: 'Interiors', status: 'In Progress', date: 'Current' }
+      ]
+    },
+    { 
+      id: 4, 
+      name: 'Govt School Block', 
+      client: 'Odisha Govt', 
+      value: '2 Cr', 
+      status: 'Completed', 
+      progress: 100, 
+      revenue: '2 Cr', 
+      start: '2023-01', 
+      end: '2023-12', 
+      stages: [] 
+    },
   ];
 
   // --- STYLES ---
@@ -69,7 +127,6 @@ export default function App() {
   // 1. DASHBOARD VIEW
   const Dashboard = () => (
     <div style={{animation: 'fadeIn 0.5s'}}>
-       {/* STATS CARDS WITH CLICK ACTIONS */}
        <div style={styles.grid}>
           <div onClick={() => navigate('revenue_details')} style={{...styles.card, cursor: 'pointer', borderLeft: `4px solid ${colors.green}`, transition: 'transform 0.2s'}} onMouseOver={e=>e.currentTarget.style.transform='translateY(-2px)'} onMouseOut={e=>e.currentTarget.style.transform='translateY(0)'}>
              <div style={{color: colors.textLight, fontSize: '0.9rem', fontWeight:'bold'}}>ANNUAL REVENUE</div>
@@ -96,7 +153,6 @@ export default function App() {
           </div>
        </div>
 
-       {/* QUICK ACTIONS ROW */}
        <div style={{marginTop: '30px'}}>
           <h3 style={{marginBottom: '15px', color: colors.text}}>🚀 Quick Actions</h3>
           <div style={{display: 'flex', gap: '15px', flexWrap: 'wrap'}}>
@@ -175,7 +231,6 @@ export default function App() {
      <div>
         <button onClick={() => navigate('staff_list')} style={styles.backBtn}><ChevronLeft size={20}/> Back to List</button>
         <div style={{display: 'flex', gap: '30px', flexWrap: 'wrap'}}>
-           {/* Profile Card */}
            <div style={{...styles.card, flex: 1, textAlign: 'center', minWidth: '300px'}}>
               <div style={{width: '100px', height: '100px', borderRadius: '50%', background: colors.navy, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem', margin: '0 auto 20px'}}>
                  {staff.name.charAt(0)}
@@ -189,7 +244,6 @@ export default function App() {
               </div>
            </div>
            
-           {/* Work History */}
            <div style={{...styles.card, flex: 2, minWidth: '300px'}}>
               <h3>Work History</h3>
               <div style={{marginTop: '20px'}}>
@@ -214,10 +268,10 @@ export default function App() {
         <button onClick={() => navigate('dashboard')} style={styles.backBtn}><ChevronLeft size={20}/> Back to Dashboard</button>
         <h2 style={{...styles.title, marginBottom: '20px'}}>Active Project Sites</h2>
         <div style={styles.grid}>
-           {projectsList.filter(p => p.status === 'Active').map(p => (
+           {projectsList.filter(p => p.status === 'Active' || p.status === 'Planning').map(p => (
               <div key={p.id} style={styles.card}>
                  <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '10px'}}>
-                    <span style={{background: '#dcfce7', color: '#166534', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold'}}>ACTIVE</span>
+                    <span style={{background: '#dcfce7', color: '#166534', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold'}}>{p.status.toUpperCase()}</span>
                     <MapPin size={18} color={colors.textLight}/>
                  </div>
                  <h3 style={{margin: '0 0 5px 0'}}>{p.name}</h3>
@@ -231,7 +285,7 @@ export default function App() {
                     </div>
                  </div>
                  <div style={{display: 'flex', gap: '10px'}}>
-                    <button style={{...styles.actionBtn, background: colors.navy, flex: 1, justifyContent: 'center'}}>View Details</button>
+                    <button onClick={() => navigate('project_details', p)} style={{...styles.actionBtn, background: colors.navy, flex: 1, justifyContent: 'center'}}>View Details</button>
                     <button style={{...styles.actionBtn, background: colors.bg, color: colors.text, flex: 1, justifyContent: 'center'}}>Site Cam</button>
                  </div>
               </div>
@@ -240,7 +294,63 @@ export default function App() {
      </div>
   );
 
-  // 6. ADD FORMS (Simplified)
+  // 5.5 NEW: PROJECT DRILL-DOWN PAGE
+  const ProjectDetailsPage = ({ project }) => (
+    <div>
+       <button onClick={() => navigate('active_projects')} style={styles.backBtn}><ChevronLeft size={20}/> Back to Projects</button>
+       
+       {/* Header Card */}
+       <div style={{...styles.card, background: colors.navy, color: 'white'}}>
+          <h2 style={{margin: '0 0 10px 0', color: 'white'}}>{project.name}</h2>
+          <div style={{display: 'flex', gap: '20px', fontSize: '0.9rem', opacity: 0.9}}>
+             <span>Client: {project.client}</span>
+             <span>|</span>
+             <span>Value: ₹{project.value}</span>
+             <span>|</span>
+             <span>Deadline: {project.end}</span>
+          </div>
+          <div style={{marginTop: '20px'}}>
+             <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '0.8rem'}}>
+                <span>Overall Completion</span><span>{project.progress}%</span>
+             </div>
+             <div style={{width: '100%', height: '8px', background: 'rgba(255,255,255,0.2)', borderRadius: '4px'}}>
+                <div style={{width: `${project.progress}%`, background: colors.green, height: '100%', borderRadius: '4px'}}></div>
+             </div>
+          </div>
+       </div>
+
+       {/* Stages Timeline */}
+       <h3 style={{color: colors.text, margin: '25px 0 15px 0'}}>Construction Stages</h3>
+       <div style={styles.card}>
+          {project.stages && project.stages.length > 0 ? (
+             project.stages.map((stage, index) => (
+                <div key={index} style={{display: 'flex', gap: '15px', paddingBottom: '20px', borderLeft: index === project.stages.length - 1 ? 'none' : `2px solid ${colors.border}`, marginLeft: '10px', paddingLeft: '20px', position: 'relative'}}>
+                   {/* Status Dot */}
+                   <div style={{
+                      position: 'absolute', left: '-6px', top: '0', width: '14px', height: '14px', borderRadius: '50%', 
+                      background: stage.status === 'Completed' ? colors.green : stage.status === 'In Progress' ? colors.orange : '#cbd5e1',
+                      border: `2px solid ${colors.white}`
+                   }}></div>
+                   
+                   <div style={{width: '100%'}}>
+                      <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '5px'}}>
+                         <span style={{fontWeight: 'bold', color: stage.status === 'Pending' ? colors.textLight : colors.text}}>{stage.name}</span>
+                         <span style={{fontSize: '0.8rem', padding: '2px 8px', borderRadius: '4px', background: stage.status === 'Completed' ? '#dcfce7' : stage.status === 'In Progress' ? '#ffedd5' : '#f1f5f9', color: stage.status === 'Completed' ? colors.green : stage.status === 'In Progress' ? colors.orange : colors.textLight, fontWeight: 'bold'}}>
+                            {stage.status}
+                         </span>
+                      </div>
+                      <div style={{fontSize: '0.85rem', color: colors.textLight}}>{stage.date}</div>
+                   </div>
+                </div>
+             ))
+          ) : (
+             <p style={{color: colors.textLight, fontStyle: 'italic'}}>No detailed stage data available for this project.</p>
+          )}
+       </div>
+    </div>
+  );
+
+  // 6. ADD FORMS
   const FormPage = ({ title }) => (
      <div style={{maxWidth: '600px', margin: '0 auto'}}>
         <button onClick={() => navigate('dashboard')} style={styles.backBtn}><ChevronLeft size={20}/> Cancel</button>
@@ -319,6 +429,7 @@ export default function App() {
         {currentView === 'dashboard' && <Dashboard />}
         {currentView === 'revenue_details' && <RevenuePage />}
         {currentView === 'active_projects' && <ProjectsPage />}
+        {currentView === 'project_details' && <ProjectDetailsPage project={selectedItem} />}
         {currentView === 'staff_list' && <StaffListPage />}
         {currentView === 'staff_profile' && <StaffProfilePage staff={selectedItem} />}
         {currentView === 'add_project' && <FormPage title="Create New Project" />}
